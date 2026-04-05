@@ -1,20 +1,22 @@
-### set-up
+# Set-up Guide
+
+### Database
 + create sql server (express) database : parc_roulant_test2
 + then execute database.sql 
 + if no error , then proceed
 
-### in frontend
+### Frontend
 + npm install 
 + npm run dev
 
 
-### in backend
+### Backend
 + py -m venv venv
 + source venv/Scripts/Activate
 + pip install -r ./requirements.txt 
 + py ./app.py
 
-### process test
+### Test the process flow
 | nom     | prenom | matricule | NUM_CONT | structure | role             |
 | ------- | ------ | --------- | -------- | --------- | ---------------- |
 | karim   | yacine | 010874    | 021669   | ISI       | agent            |
