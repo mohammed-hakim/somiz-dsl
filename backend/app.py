@@ -3,6 +3,9 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import pyodbc
 from datetime import datetime
+import socket
+import getpass
+
 
 app = Flask(__name__)
 CORS(app)
@@ -19,6 +22,15 @@ def get_db_connection():
     )
     conn = pyodbc.connect(conn_str)
     return conn
+
+def log_transaction(cursor, demande_id, matricule, action, ip_address):
+    print("hello we are testing : ",socket.gethostname())
+    print("hello we are testing : ",getpass.getuser())
+    q = """
+    INSERT INTO Journaux (Id_Demande, Utilisateur_Matricule, Action, Nom_PC, Adresse_IP, Session_Windows)
+    VALUES (?, ?, ?, ?, ?, ?)
+    """
+    cursor.execute(q, (demande_id, matricule, action, socket.gethostname(), ip_address, getpass.getuser()))
 
 @app.route('/api/login', methods=['POST'])
 def login():
@@ -154,13 +166,13 @@ def create_demande():
     next_id = (max_id or 0) + 1
     
     n_dsl = f"{structure}-{next_id}-{year}"
-    demandeur = data.get('demandeur_matricule')
+    utilisateur = data.get('creator_matricule')
     
     q = """
     INSERT INTO Demandes (
         N_DSL, Code_Structure, Code_Affaire, Client, Ref_ODS_Client, 
         Lieu_Prestation, Date_Debut_Prestation, Date_Fin_Prestation,
-        Nature_Prestation, Observation, Demandeur_Matricule, Status
+        Nature_Prestation, Observation, utilisateur, Status
     )
     OUTPUT INSERTED.Id
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'En Attente')
@@ -176,7 +188,7 @@ def create_demande():
         data.get('date_fin'), 
         data.get('nature_prestation'), 
         data.get('observation'), 
-        demandeur
+        utilisateur
     )
     cursor.execute(q, params)
     demande_id = cursor.fetchone()[0]
@@ -184,6 +196,8 @@ def create_demande():
     for code in requested_engins:
         cursor.execute("INSERT INTO Demande_Engins (Id_Demande, Code_Prestation) VALUES (?, ?)", (demande_id, code))
         
+    log_transaction(cursor, demande_id, utilisateur, "Création de la demande", request.remote_addr)
+    
     conn.commit()
     conn.close()
     
@@ -203,7 +217,7 @@ def get_demandes():
     SELECT d.Id, d.N_DSL, d.Date_Demande, d.Client, d.Status,
            rh.nom, rh.prenom
     FROM Demandes d
-    LEFT JOIN RH rh ON d.Demandeur_Matricule = rh.matricule
+    LEFT JOIN RH rh ON d.utilisateur = rh.matricule
     """
     
     # Specific filtering Logic
@@ -211,7 +225,7 @@ def get_demandes():
         # DSL Chef sees ALL partially Validated requests or requests already in DSL process
         q += " WHERE d.Status IN ('Validé', 'Approuvé par DSL', 'Clôturé')"
     elif role == 'agent':
-        q += f" WHERE d.Demandeur_Matricule = '{matricule}'"
+        q += f" WHERE d.utilisateur = '{matricule}'"
     elif role == 'chef departement' or role == 'secretaire':
         # See all in structure
         q += f" WHERE rh.structure = '{structure}'"
@@ -242,13 +256,9 @@ def get_demande_detail(demande_id):
     
     q = """
     SELECT d.*, 
-           dem_rh.nom as dem_nom, dem_rh.prenom as dem_prenom, dem_rh.role as dem_role,
-           chef_rh.nom as chef_nom, chef_rh.prenom as chef_prenom, chef_rh.role as chef_role,
-           dsl_rh.nom as dsl_nom, dsl_rh.prenom as dsl_prenom, dsl_rh.role as dsl_role
+           dem_rh.nom as dem_nom, dem_rh.prenom as dem_prenom, dem_rh.role as dem_role
     FROM Demandes d
-    LEFT JOIN RH dem_rh ON d.Demandeur_Matricule = dem_rh.matricule
-    LEFT JOIN RH chef_rh ON d.Chef_Structure_Matricule = chef_rh.matricule
-    LEFT JOIN RH dsl_rh ON d.DSL_Chef_Matricule = dsl_rh.matricule
+    LEFT JOIN RH dem_rh ON d.utilisateur = dem_rh.matricule
     WHERE d.Id = ?
     """
     cursor.execute(q, (demande_id,))
@@ -291,11 +301,10 @@ def valider_demande(demande_id):
     cursor.execute("""
         UPDATE Demandes 
         SET Status = 'Validé', 
-            Visa_Chef = 1, 
-            Chef_Structure_Matricule = ?, 
-            Date_Validation_Chef = GETDATE()
+            date_validation_demandeur = GETDATE()
         WHERE Id = ?
-    """, (matricule, demande_id))
+    """, (demande_id,))
+    log_transaction(cursor, demande_id, matricule, "Validation ISI (Chef Département)", request.remote_addr)
     conn.commit()
     conn.close()
     return jsonify({"message": "Validé avec succès"})
@@ -321,33 +330,64 @@ def dsl_valider_demande(demande_id):
         UPDATE Demandes 
         SET Status = 'Approuvé par DSL', 
             Enregistre_A_DSL = 1, 
-            Date_Enregistrement_DSL = GETDATE(),
-            DSL_Chef_Matricule = ?,
+            date_validation_prestataire = GETDATE(),
             OT_ODS = ?,
             Fournisseur = ?
         WHERE Id = ?
-    """, (matricule, ot_ods, fournisseur, demande_id))
+    """, (ot_ods, fournisseur, demande_id))
+    log_transaction(cursor, demande_id, matricule, "Validation Structure DSL", request.remote_addr)
     conn.commit()
     conn.close()
     return jsonify({"message": "Enregistré au DSL avec succès"})
 
 @app.route('/api/demandes/<int:demande_id>/cloturer', methods=['POST'])
 def cloturer_demande(demande_id):
+    data = request.json
+    matricule = data.get('matricule') if (data and 'matricule' in data) else 'System'
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("UPDATE Demandes SET Status = 'Clôturé' WHERE Id = ?", (demande_id,))
+    log_transaction(cursor, demande_id, matricule, "Clôture de la demande", request.remote_addr)
     conn.commit()
     conn.close()
     return jsonify({"message": "Clôturé avec succès"})
 
 @app.route('/api/demandes/<int:demande_id>/refuser', methods=['POST'])
 def refuser_demande(demande_id):
+    data = request.json
+    matricule = data.get('matricule') if (data and 'matricule' in data) else 'System'
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("UPDATE Demandes SET Status = 'Refusé' WHERE Id = ?", (demande_id,))
+    log_transaction(cursor, demande_id, matricule, "Refus de la demande", request.remote_addr)
     conn.commit()
     conn.close()
     return jsonify({"message": "Demande Refusée"})
+
+@app.route('/api/demandes/<int:demande_id>/journaux', methods=['GET'])
+def get_demande_journaux(demande_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT j.Action, j.Date_Action, j.Nom_PC, j.Adresse_IP, j.Session_Windows, rh.nom, rh.prenom
+        FROM Journaux j
+        LEFT JOIN RH rh ON j.Utilisateur_Matricule = rh.matricule
+        WHERE j.Id_Demande = ?
+        ORDER BY j.Date_Action DESC
+    """, (demande_id,))
+    
+    rows = cursor.fetchall()
+    conn.close()
+    
+    return jsonify([{
+        "action": r.Action,
+        "date_action": r.Date_Action.strftime("%Y-%m-%d %H:%M:%S") if r.Date_Action else "",
+        "nom_pc": r.Nom_PC,
+        "session_windows": r.Session_Windows,
+        "adresse_ip": r.Adresse_IP,
+        "session_windows": r.Session_Windows,
+        "utilisateur": f"{r.nom} {r.prenom}" if r.nom else "Système"
+    } for r in rows])
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

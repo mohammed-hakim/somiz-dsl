@@ -16,7 +16,7 @@ const DemandeForm = ({ user }) => {
     date_fin: '',
     nature_prestation: '',
     observation: '',
-    demandeur_matricule: user.matricule,
+    creator_matricule: user.matricule,
     engins: []
   });
 
@@ -236,8 +236,8 @@ const DemandeForm = ({ user }) => {
           <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
              <label className="block text-sm font-semibold text-blue-900 mb-2">Sélectionner le demandeur (Employé du même service)</label>
              <select 
-               name="demandeur_matricule" 
-               value={formData.demandeur_matricule} 
+               name="creator_matricule" 
+               value={formData.creator_matricule} 
                onChange={handleChange}
                className="w-full px-4 py-3 rounded-lg border border-blue-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
              >

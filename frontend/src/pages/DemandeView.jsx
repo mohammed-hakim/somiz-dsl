@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Check, CheckCircle, FileText, Anchor, History, XCircle, Printer } from 'lucide-react';
+import { Check, CheckCircle, FileText, Anchor, History, XCircle, Printer, ScrollText } from 'lucide-react';
 
 const DemandeView = ({ user }) => {
    const { id } = useParams();
@@ -9,15 +9,26 @@ const DemandeView = ({ user }) => {
    const [demande, setDemande] = useState(null);
    const [loading, setLoading] = useState(true);
    const [errorStatus, setErrorStatus] = useState('');
+   const [journaux, setJournaux] = useState([]);
 
    // DSL Local form state
    const [dslForm, setDslForm] = useState({ ot_ods: '', fournisseur: '' });
+
+   const fetchJournaux = async () => {
+      try {
+         const { data } = await axios.get(`http://localhost:5000/api/demandes/${id}/journaux`);
+         setJournaux(data);
+      } catch (err) {
+         console.error(err);
+      }
+   };
 
    const fetchDemande = async () => {
       try {
          const { data } = await axios.get(`http://localhost:5000/api/demandes/${id}`);
          setDemande(data);
          document.title = data.N_DSL || `Demande_${id}`;
+         fetchJournaux();
       } catch (err) {
          console.error(err);
       } finally {
@@ -50,13 +61,13 @@ const DemandeView = ({ user }) => {
 
    const handleRefuser = async () => {
       if (window.confirm('Êtes-vous sûr de vouloir refuser cette demande ? (Ceci libérera les engins)')) {
-         await axios.post(`http://localhost:5000/api/demandes/${id}/refuser`);
+         await axios.post(`http://localhost:5000/api/demandes/${id}/refuser`, { matricule: user.matricule });
          fetchDemande();
       }
    };
 
    const handleCloturer = async () => {
-      await axios.post(`http://localhost:5000/api/demandes/${id}/cloturer`);
+      await axios.post(`http://localhost:5000/api/demandes/${id}/cloturer`, { matricule: user.matricule });
       fetchDemande();
    };
 
@@ -149,8 +160,7 @@ const DemandeView = ({ user }) => {
                <div className="hidden print:block border border-black p-3 mt-4">
                   <h4 className="text-xs font-bold uppercase tracking-wider mb-2 border-b border-black pb-1">Réservé à La Division Logistique (DSL)</h4>
                   <div className="flex justify-between text-sm font-medium">
-                     <p>Enregistrée le : <span className="font-bold">{demande.Date_Enregistrement_DSL || '__________________'}</span></p>
-                     <p>Par : <span className="font-bold">{demande.dsl_nom ? `${demande.dsl_nom} ${demande.dsl_prenom}` : '__________________'}</span></p>
+                     <p>Validée le : <span className="font-bold">{demande.date_validation_prestataire || '__________________'}</span></p>
                   </div>
                   <div className="flex justify-between text-sm mt-3 font-medium">
                      <p>OT ou ODS N° : <span className="font-bold">{demande.OT_ODS || '__________________'}</span></p>
@@ -166,11 +176,10 @@ const DemandeView = ({ user }) => {
                      <p className="text-xs italic">(Signé le {demande.Date_Demande})</p>
                   </div>
                   <div className="text-center">
-                     <p className="font-bold uppercase text-sm">Visa Chef de Structure</p>
-                     {demande.Visa_Chef ? (
+                     <p className="font-bold uppercase text-sm">Validation Chef Département</p>
+                     {demande.date_validation_demandeur ? (
                         <>
-                           <p className="text-xs mt-1 mb-16">{demande.chef_nom} {demande.chef_prenom}</p>
-                           <p className="text-xs italic">(Approuvé le {demande.Date_Validation_Chef})</p>
+                           <p className="text-xs italic mt-1 mb-16">(Validé le {demande.date_validation_demandeur})</p>
                         </>
                      ) : (
                         <p className="text-xs italic mt-10">Non validé</p>
@@ -186,21 +195,19 @@ const DemandeView = ({ user }) => {
             <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><History className="w-5 h-5" /> Suivi de la Demande</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                <div className="p-5 bg-white border border-slate-200 rounded-xl shadow-sm">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Demandeur</h4>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Créée par</h4>
                   <p className="font-semibold text-slate-800">{demande.dem_nom} {demande.dem_prenom}</p>
-                  <p className="text-xs text-slate-500">{demande.Demandeur_Matricule} - {demande.dem_role}</p>
+                  <p className="text-xs text-slate-500">{demande.utilisateur} - {demande.dem_role}</p>
                   <div className="mt-3 flex items-center gap-1 text-green-600 text-xs font-bold"><CheckCircle className="w-4 h-4" /> Initiée ({demande.Date_Demande})</div>
                </div>
 
                <div className="p-5 bg-white border border-slate-200 rounded-xl shadow-sm border-l-4 border-l-green-400">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Chef Structure Origine</h4>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Validation Département (ISI)</h4>
                   {demande.Status === 'Refusé' ? (
                      <div className="mt-3 flex items-center gap-1 text-red-600 text-xs font-bold"><XCircle className="w-4 h-4" /> Refusé/Annulé</div>
-                  ) : demande.Visa_Chef ? (
+                  ) : demande.date_validation_demandeur ? (
                      <>
-                        <p className="font-semibold text-slate-800">{demande.chef_nom} {demande.chef_prenom}</p>
-                        <p className="text-xs text-slate-500">{demande.Chef_Structure_Matricule}</p>
-                        <div className="mt-3 flex items-center gap-1 text-green-600 text-xs font-bold"><CheckCircle className="w-4 h-4" /> Validé ({demande.Date_Validation_Chef})</div>
+                        <div className="mt-3 flex items-center gap-1 text-green-600 text-xs font-bold"><CheckCircle className="w-4 h-4" /> Validé le {demande.date_validation_demandeur}</div>
                      </>
                   ) : (
                      <span className="text-slate-400 text-sm">En Attente...</span>
@@ -208,12 +215,12 @@ const DemandeView = ({ user }) => {
                </div>
 
                <div className="p-5 bg-white border border-slate-200 rounded-xl shadow-sm border-l-4 border-l-indigo-400">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Division des Services Logistique (DSL)</h4>
-                  {demande.Enregistre_A_DSL ? (
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Validation Structure DSL</h4>
+                  {demande.date_validation_prestataire ? (
                      <>
-                        <p className="font-semibold text-slate-800">{demande.dsl_nom} {demande.dsl_prenom}</p>
-                        <p className="text-xs text-slate-500">Par {demande.DSL_Chef_Matricule}</p>
-                        <div className="mt-3 flex items-center gap-1 text-indigo-600 text-xs font-bold"><CheckCircle className="w-4 h-4" /> Traité ({demande.Date_Enregistrement_DSL})</div>
+                        <div className="mt-3 flex items-center gap-1 text-indigo-600 text-xs font-bold"><CheckCircle className="w-4 h-4" /> Validé le {demande.date_validation_prestataire}</div>
+                        {demande.OT_ODS && <p className="text-xs text-slate-500 mt-1">OT/ODS: {demande.OT_ODS}</p>}
+                        {demande.Fournisseur && <p className="text-xs text-slate-500">Fournisseur: {demande.Fournisseur}</p>}
                      </>
                   ) : (
                      <span className="text-slate-400 text-sm">Non traité par DSL</span>
@@ -232,7 +239,7 @@ const DemandeView = ({ user }) => {
                {user.role === 'chef departement' && demande.Status === 'En Attente' && user.struc_code !== 'DSL' && (
                   <div className="grid grid-cols-2 gap-4">
                      <button onClick={handleValider} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl shadow transition-all flex items-center justify-center gap-2 text-lg">
-                        <Check className="w-6 h-6" /> Approuver (Visa Chef)
+                        <Check className="w-6 h-6" /> Approuver
                      </button>
                      <button onClick={handleRefuser} className="w-full bg-red-100 hover:bg-red-200 text-red-700 font-bold py-4 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 text-lg border border-red-200">
                         <XCircle className="w-6 h-6" /> Refuser
@@ -255,7 +262,7 @@ const DemandeView = ({ user }) => {
                      </div>
                      <div className="grid grid-cols-3 gap-4">
                         <button onClick={handleDslValider} className="col-span-2 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg shadow transition-all flex items-center justify-center gap-2">
-                           <CheckCircle className="w-5 h-5" /> Enregistrer & Approuver DSL
+                           <CheckCircle className="w-5 h-5" /> Enregistrer & Approuver
                         </button>
                         <button onClick={handleRefuser} className="col-span-1 w-full bg-red-100 hover:bg-red-200 text-red-700 font-bold py-3 rounded-lg shadow-sm transition-all flex items-center justify-center gap-2">
                            Refuser
@@ -264,12 +271,45 @@ const DemandeView = ({ user }) => {
                   </div>
                )}
 
-               {(user.matricule === demande.Demandeur_Matricule || user.role === 'chef departement') && demande.Status === 'Approuvé par DSL' && (
+               {(user.matricule === demande.utilisateur || user.role === 'chef departement') && demande.Status === 'Approuvé par DSL' && (
                   <button onClick={handleCloturer} className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-4 rounded-xl shadow transition-all flex items-center justify-center gap-2 text-lg">
                      Clôturer définitivement la demande
                   </button>
                )}
             </div>
+
+            {/* JOURNAUX / LOGS */}
+            {journaux.length > 0 && (
+               <div className="mt-8">
+                  <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><ScrollText className="w-5 h-5" /> Journal [TEST] </h3>
+                  <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                     <table className="w-full text-sm">
+                        <thead className="bg-slate-50 border-b border-slate-200">
+                           <tr>
+                              <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">Action</th>
+                              <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">Utilisateur</th>
+                              <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">Date</th>
+                              <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">IP</th>
+                              <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">PC</th>
+                              <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">win session</th>
+                           </tr>
+                        </thead>
+                        <tbody>
+                           {journaux.map((j, idx) => (
+                              <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50 transition">
+                                 <td className="px-4 py-3 font-medium text-slate-700">{j.action}</td>
+                                 <td className="px-4 py-3 text-slate-600">{j.utilisateur}</td>
+                                 <td className="px-4 py-3 text-slate-500">{j.date_action}</td>
+                                 <td className="px-4 py-3 text-slate-500">{j.adresse_ip}</td>
+                                 <td className="px-4 py-3 text-slate-500">{j.nom_pc}</td>
+                                 <td className="px-4 py-3 text-slate-500">{j.session_windows}</td>
+                              </tr>
+                           ))}
+                        </tbody>
+                     </table>
+                  </div>
+               </div>
+            )}
          </div>
 
       </div>

@@ -217,18 +217,13 @@ BEGIN
         [Nature_Prestation] NVARCHAR(MAX),
         [Observation] NVARCHAR(MAX),
         
-        [Demandeur_Matricule] NVARCHAR(20),
-        [Visa_Demandeur] BIT DEFAULT 1,
-        
-        [Chef_Structure_Matricule] NVARCHAR(20),
-        [Visa_Chef] BIT DEFAULT 0,
-        [Date_Validation_Chef] DATETIME,
+        [utilisateur] NVARCHAR(20),
+        [date_validation_demandeur] DATETIME,
         
         [Status] NVARCHAR(50) DEFAULT 'En Attente', -- En Attente, Validé, Clôturé, Refusé
         
         [Enregistre_A_DSL] BIT DEFAULT 0,
-        [Date_Enregistrement_DSL] DATETIME,
-        [DSL_Chef_Matricule] NVARCHAR(20),
+        [date_validation_prestataire] DATETIME,
         [OT_ODS] NVARCHAR(255),
         [Fournisseur] NVARCHAR(255)
     );
@@ -248,4 +243,20 @@ BEGIN
 END
 GO
 
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Journaux]') AND type in (N'U'))
+BEGIN
+    CREATE TABLE [Journaux] (
+        [Id] INT IDENTITY(1,1) PRIMARY KEY,
+        [Id_Demande] INT,
+        [Utilisateur_Matricule] NVARCHAR(20),
+        [Action] NVARCHAR(255),
+        [Nom_PC] NVARCHAR(255),
+        [Adresse_IP] NVARCHAR(255),
+        [Session_Windows] NVARCHAR(255),
+        [Date_Action] DATETIME DEFAULT GETDATE(),
+        
+        CONSTRAINT FK_Journaux_Demande FOREIGN KEY (Id_Demande) REFERENCES Demandes(Id)
+    );
+END
+GO
 
