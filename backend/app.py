@@ -23,9 +23,15 @@ def get_db_connection():
     conn = pyodbc.connect(conn_str)
     return conn
 
+def get_local_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(("8.8.8.8", 80)) # google dns
+    ip = s.getsockname()[0]
+    s.close()
+    return ip
+
 def log_transaction(cursor, demande_id, matricule, action, ip_address):
-    print("hello we are testing : ",socket.gethostname())
-    print("hello we are testing : ",getpass.getuser())
+    print("if the ip returned from ip_adress is always 127.0.0.1 we will use this function : ", get_local_ip())
     q = """
     INSERT INTO Journaux (Id_Demande, Utilisateur_Matricule, Action, Nom_PC, Adresse_IP, Session_Windows)
     VALUES (?, ?, ?, ?, ?, ?)
