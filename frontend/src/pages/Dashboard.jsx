@@ -47,17 +47,18 @@ const Dashboard = ({ user }) => {
           ) : (
              demandes.map(d => (
                <li 
-                 key={d.id} 
-                 onClick={() => navigate(`/demande/${d.id}`)}
+                 key={d.num_demande} 
+                 onClick={() => navigate(`/demande/${encodeURIComponent(d.num_demande)}`)}
                  className="p-5 hover:bg-slate-50/80 transition-colors flex items-center justify-between group cursor-pointer"
                >
                  <div>
                    <h3 className="font-semibold text-slate-800 text-lg flex items-center gap-3">
-                     {d.n_dsl}
+                     {d.num_demande}
                      <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
                        d.status === 'Validé' ? 'bg-green-100 text-green-700' :
                        d.status === 'Clôturé' ? 'bg-slate-200 text-slate-600' :
                        d.status === 'Approuvé par DSL' ? 'bg-indigo-100 text-indigo-700' :
+                       d.status === 'Refusé' ? 'bg-red-100 text-red-700' :
                        'bg-orange-100 text-orange-700'
                      }`}>
                        {d.status}
@@ -66,7 +67,8 @@ const Dashboard = ({ user }) => {
                    <div className="text-sm text-slate-500 mt-2 grid grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-1">
                      <p><b>Client:</b> {d.client || '-'}</p>
                      <p><b>Date:</b> {d.date_demande}</p>
-                     <p className="col-span-2"><b>Demandeur:</b> {d.demandeur}</p>
+                     <p><b>Structure:</b> {d.structure_initial || '-'}</p>
+                     <p><b>Demandeur:</b> {d.demandeur}</p>
                    </div>
                  </div>
                  <div className="text-slate-400 group-hover:text-blue-500 transition-colors">

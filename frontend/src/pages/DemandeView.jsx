@@ -4,7 +4,7 @@ import axios from 'axios';
 import { Check, CheckCircle, FileText, Anchor, History, XCircle, Printer, ScrollText } from 'lucide-react';
 
 const DemandeView = ({ user }) => {
-   const { id } = useParams();
+   const { num_demande } = useParams();
    const navigate = useNavigate();
    const [demande, setDemande] = useState(null);
    const [loading, setLoading] = useState(true);
@@ -16,7 +16,7 @@ const DemandeView = ({ user }) => {
 
    const fetchJournaux = async () => {
       try {
-         const { data } = await axios.get(`http://localhost:5000/api/demandes/${id}/journaux`);
+         const { data } = await axios.get(`http://localhost:5000/api/demandes/${encodeURIComponent(num_demande)}/journaux`);
          setJournaux(data);
       } catch (err) {
          console.error(err);
@@ -25,9 +25,9 @@ const DemandeView = ({ user }) => {
 
    const fetchDemande = async () => {
       try {
-         const { data } = await axios.get(`http://localhost:5000/api/demandes/${id}`);
+         const { data } = await axios.get(`http://localhost:5000/api/demandes/${encodeURIComponent(num_demande)}`);
          setDemande(data);
-         document.title = data.N_DSL || `Demande_${id}`;
+         document.title = data.num_demande || 'Demande';
          fetchJournaux();
       } catch (err) {
          console.error(err);
@@ -38,17 +38,17 @@ const DemandeView = ({ user }) => {
 
    useEffect(() => {
       fetchDemande();
-   }, [id]);
+   }, [num_demande]);
 
    const handleValider = async () => {
-      await axios.post(`http://localhost:5000/api/demandes/${id}/valider`, { matricule: user.matricule });
+      await axios.post(`http://localhost:5000/api/demandes/${encodeURIComponent(num_demande)}/valider`, { matricule: user.matricule });
       fetchDemande();
    };
 
    const handleDslValider = async () => {
       try {
          setErrorStatus('');
-         await axios.post(`http://localhost:5000/api/demandes/${id}/dsl_validate`, {
+         await axios.post(`http://localhost:5000/api/demandes/${encodeURIComponent(num_demande)}/dsl_validate`, {
             matricule: user.matricule,
             ot_ods: dslForm.ot_ods,
             fournisseur: dslForm.fournisseur
@@ -61,13 +61,13 @@ const DemandeView = ({ user }) => {
 
    const handleRefuser = async () => {
       if (window.confirm('Êtes-vous sûr de vouloir refuser cette demande ? (Ceci libérera les engins)')) {
-         await axios.post(`http://localhost:5000/api/demandes/${id}/refuser`, { matricule: user.matricule });
+         await axios.post(`http://localhost:5000/api/demandes/${encodeURIComponent(num_demande)}/refuser`, { matricule: user.matricule });
          fetchDemande();
       }
    };
 
    const handleCloturer = async () => {
-      await axios.post(`http://localhost:5000/api/demandes/${id}/cloturer`, { matricule: user.matricule });
+      await axios.post(`http://localhost:5000/api/demandes/${encodeURIComponent(num_demande)}/cloturer`, { matricule: user.matricule });
       fetchDemande();
    };
 
@@ -98,7 +98,7 @@ const DemandeView = ({ user }) => {
          {/* DOCUMENT TO PRINT & VIEW */}
          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-8 print:shadow-none print:border-none print:m-0">
 
-            {/* Print Only Header (Simulating physical DOCX) */}
+            {/* Print Only Header */}
             <div className="hidden print:block text-center mb-8 border-b-2 border-black pb-4">
                <h1 className="text-2xl font-bold uppercase tracking-widest text-black">Entreprise SOMIZ</h1>
                <h2 className="text-xl font-bold uppercase mt-2 text-black">DEMANDE DE MISE A DISPOSITION DE MOYENS</h2>
@@ -107,9 +107,11 @@ const DemandeView = ({ user }) => {
             <div className="bg-slate-50 border-b border-slate-200 p-6 print:bg-white print:p-0 print:border-none print:mb-6">
                <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2 print:text-black print:text-xl">
                   <FileText className="w-6 h-6 text-blue-500 print:hidden" />
-                  Réf N° : {demande.N_DSL}
+                  Réf N° : {demande.num_demande}
                </h2>
-               <p className="text-slate-500 text-sm mt-2 print:text-black">Structure / Division: <span className="font-bold">{demande.Code_Structure}</span></p>
+               <p className="text-slate-500 text-sm mt-2 print:text-black">
+                  Structure / Division: <span className="font-bold">{demande.Structure_Intitule || demande.Code_Structure || '-'}</span>
+               </p>
                <p className="text-slate-500 text-sm mt-1 print:text-black print:hidden">Créé le {demande.Date_Demande}</p>
             </div>
 
@@ -119,16 +121,15 @@ const DemandeView = ({ user }) => {
                   <div className="print:border print:border-black print:p-3">
                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 print:text-black print:border-b print:border-black print:pb-1">1. Imputation</h4>
                      <div className="space-y-2 text-sm text-slate-700 print:text-black font-medium">
-                        <p><span className="w-32 inline-block text-slate-500 print:text-black">Code Affaire/NS:</span> {demande.Code_Affaire}</p>
-                        <p><span className="w-32 inline-block text-slate-500 print:text-black">Client:</span> {demande.Client || '-'}</p>
-                        <p><span className="w-32 inline-block text-slate-500 print:text-black">Réf. ODS:</span> {demande.Ref_ODS_Client || '-'}</p>
+                        <p><span className="w-32 inline-block text-slate-500 print:text-black">Code Affaire:</span> {demande.Code_Affaire}</p>
+                        <p><span className="w-32 inline-block text-slate-500 print:text-black">Client:</span> {demande.CLIENT || '-'}</p>
+                        <p><span className="w-32 inline-block text-slate-500 print:text-black">Structure:</span> {demande.Structure_Intitule || demande.Code_Structure || '-'}</p>
                      </div>
                   </div>
 
                   <div className="print:border print:border-black print:p-3">
-                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 print:text-black print:border-b print:border-black print:pb-1">2. Lieu et Durée</h4>
+                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 print:text-black print:border-b print:border-black print:pb-1">2. Durée</h4>
                      <div className="space-y-2 text-sm text-slate-700 print:text-black font-medium">
-                        <p><span className="w-32 inline-block text-slate-500 print:text-black">Lieu:</span> {demande.Lieu_Prestation}</p>
                         <p><span className="w-32 inline-block text-slate-500 print:text-black">Date Début:</span> {demande.Date_Debut_Prestation}</p>
                         <p><span className="w-32 inline-block text-slate-500 print:text-black">Date Fin:</span> {demande.Date_Fin_Prestation}</p>
                      </div>
@@ -136,9 +137,9 @@ const DemandeView = ({ user }) => {
                </div>
 
                <div className="print:border print:border-black print:p-3">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 print:text-black print:border-b print:border-black print:pb-1">3. Nature de la Prestation</h4>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 print:text-black print:border-b print:border-black print:pb-1">3. Description de la Prestation</h4>
                   <div className="p-4 bg-slate-50 rounded-lg text-sm text-slate-700 whitespace-pre-wrap print:bg-white print:p-0 print:text-black font-medium">
-                     {demande.Nature_Prestation}
+                     {demande.description}
                      {demande.Observation && <div className="mt-4 pt-4 border-t border-slate-200 print:border-black print:mt-2 print:pt-2"><strong>Obs:</strong> {demande.Observation}</div>}
                   </div>
                </div>
@@ -202,7 +203,7 @@ const DemandeView = ({ user }) => {
                </div>
 
                <div className="p-5 bg-white border border-slate-200 rounded-xl shadow-sm border-l-4 border-l-green-400">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Validation Département (ISI)</h4>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Validation Département</h4>
                   {demande.Status === 'Refusé' ? (
                      <div className="mt-3 flex items-center gap-1 text-red-600 text-xs font-bold"><XCircle className="w-4 h-4" /> Refusé/Annulé</div>
                   ) : demande.date_validation_demandeur ? (
@@ -281,17 +282,17 @@ const DemandeView = ({ user }) => {
             {/* JOURNAUX / LOGS */}
             {journaux.length > 0 && (
                <div className="mt-8">
-                  <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><ScrollText className="w-5 h-5" /> Journal [TEST] </h3>
+                  <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><ScrollText className="w-5 h-5" /> Journal des Opérations</h3>
                   <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
                      <table className="w-full text-sm">
                         <thead className="bg-slate-50 border-b border-slate-200">
                            <tr>
-                              <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">Action</th>
+                              <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">Opération</th>
                               <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">Utilisateur</th>
                               <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">Date</th>
                               <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">IP</th>
-                              <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">PC</th>
-                              <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">win session</th>
+                              <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">Machine</th>
+                              <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase">Compte Win</th>
                            </tr>
                         </thead>
                         <tbody>

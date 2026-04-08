@@ -8,17 +8,16 @@ const DemandeForm = ({ user }) => {
   
   const [formData, setFormData] = useState({
     code_affaire: '',
-    client: '',
-    code_structure: '',
-    ref_ods_client: '',
-    lieu_prestation: '',
     date_debut: '',
     date_fin: '',
-    nature_prestation: '',
+    description: '',
     observation: '',
     creator_matricule: user.matricule,
     engins: []
   });
+
+  // Données récupérées par la jointure (affichage uniquement)
+  const [affaireInfo, setAffaireInfo] = useState({ client: '', code_structure: '', intitule: '' });
 
   const [equipements, setEquipements] = useState([]);
   const [engineSearch, setEngineSearch] = useState('');
@@ -29,7 +28,6 @@ const DemandeForm = ({ user }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    // Fetch avail equipments with search
     const timer = setTimeout(() => {
       axios.get(`http://localhost:5000/api/equipements?search=${engineSearch}`).then(res => setEquipements(res.data));
     }, 300);
@@ -37,30 +35,32 @@ const DemandeForm = ({ user }) => {
   }, [engineSearch]);
   
   useEffect(() => {
-    // If secretaire, fetch employees in same structure
     if (user.role === 'secretaire') {
       axios.get(`http://localhost:5000/api/employees?structure=${user.structure}`).then(res => setEmployees(res.data));
     }
   }, [user]);
 
-  // Try to load affaire when exactly 7 chars
+  // Charger les infos de l'affaire quand code_affaire = 7 caractères
   useEffect(() => {
     if (formData.code_affaire.length === 7) {
       setLoadingAffaire(true);
       setAffaireError('');
       axios.get(`http://localhost:5000/api/affaires_structures/${formData.code_affaire}`)
         .then(({ data }) => {
-          setFormData(prev => ({
-            ...prev,
+          setAffaireInfo({
             client: data.client,
-            code_structure: data.cod_struct_h
-          }));
+            code_structure: data.cod_struct_h,
+            intitule: data.intitule
+          });
           setLoadingAffaire(false);
         })
         .catch(() => {
           setAffaireError('Affaire introuvable');
+          setAffaireInfo({ client: '', code_structure: '', intitule: '' });
           setLoadingAffaire(false);
         });
+    } else {
+      setAffaireInfo({ client: '', code_structure: '', intitule: '' });
     }
   }, [formData.code_affaire]);
 
@@ -84,7 +84,7 @@ const DemandeForm = ({ user }) => {
     setSubmitError('');
     setIsSubmitting(true);
     try {
-      await axios.post('http://localhost:5000/api/demandes', {
+      const res = await axios.post('http://localhost:5000/api/demandes', {
         ...formData,
         structure: user.struc_code || 'GEN',
         creator_matricule: user.matricule
@@ -130,43 +130,28 @@ const DemandeForm = ({ user }) => {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Client (Autofill)</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Client (Autofill via affaire)</label>
               <input 
-                type="text" name="client" value={formData.client} readOnly
+                type="text" value={affaireInfo.client} readOnly
                 className="w-full px-4 py-3 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 outline-none"
                 placeholder="Client..."
               />
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Code Structure (Autofill)</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Structure (Autofill via affaire)</label>
               <input 
-                type="text" value={formData.code_structure} readOnly
+                type="text" value={affaireInfo.intitule ? `${affaireInfo.code_structure} - ${affaireInfo.intitule}` : affaireInfo.code_structure} readOnly
                 className="w-full px-4 py-3 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Réf. ODS Client</label>
-              <input 
-                type="text" name="ref_ods_client" value={formData.ref_ods_client} onChange={handleChange}
-                className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition"
               />
             </div>
           </div>
         </div>
 
-        {/* Section 2: Prestation */}
+        {/* Section 2: Durée */}
         <div className="space-y-6">
-          <h3 className="text-lg font-semibold text-blue-800 border-b pb-2">2. Lieu et Durée</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="md:col-span-1">
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Lieu de la prestation</label>
-              <input 
-                type="text" name="lieu_prestation" value={formData.lieu_prestation} onChange={handleChange} required
-                className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
-              />
-            </div>
+          <h3 className="text-lg font-semibold text-blue-800 border-b pb-2">2. Durée de la Prestation</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">Date début</label>
               <input 
@@ -184,12 +169,13 @@ const DemandeForm = ({ user }) => {
           </div>
         </div>
 
+        {/* Section 3: Description et Engins */}
         <div className="space-y-6">
-          <h3 className="text-lg font-semibold text-blue-800 border-b pb-2">3. Nature et Engins</h3>
+          <h3 className="text-lg font-semibold text-blue-800 border-b pb-2">3. Description et Engins</h3>
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">Nature de la prestation</label>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Description de la prestation</label>
             <textarea 
-              name="nature_prestation" value={formData.nature_prestation} onChange={handleChange} required
+              name="description" value={formData.description} onChange={handleChange} required
               rows={3} className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </div>
@@ -224,6 +210,7 @@ const DemandeForm = ({ user }) => {
           </div>
         </div>
 
+        {/* Section 4: Observations */}
         <div className="space-y-6">
           <h3 className="text-lg font-semibold text-blue-800 border-b pb-2">4. Observations</h3>
           <textarea 

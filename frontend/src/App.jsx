@@ -42,7 +42,7 @@ function App() {
              <Route path="/login" element={<Login setUser={setUser} />} />
              <Route path="/" element={user ? <Dashboard user={user} /> : <Navigate to="/login" />} />
              <Route path="/demande/new" element={user ? <DemandeForm user={user} /> : <Navigate to="/login" />} />
-             <Route path="/demande/:id" element={user ? <DemandeView user={user} /> : <Navigate to="/login" />} />
+             <Route path="/demande/:num_demande" element={user ? <DemandeView user={user} /> : <Navigate to="/login" />} />
              <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </main>

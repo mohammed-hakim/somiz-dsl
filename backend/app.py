@@ -11,8 +11,6 @@ app = Flask(__name__)
 CORS(app)
 
 def get_db_connection():
-    # Attempt connecting to SQLEXPRESS using ODBC Driver 18
-    # Using TrustServerCertificate=yes to bypass SSL strict verification 
     conn_str = (
         r'DRIVER={ODBC Driver 18 for SQL Server};'
         r'SERVER=.\SQLEXPRESS;'
@@ -25,18 +23,29 @@ def get_db_connection():
 
 def get_local_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s.connect(("8.8.8.8", 80)) # google dns
+    s.connect(("8.8.8.8", 80))
     ip = s.getsockname()[0]
     s.close()
     return ip
 
-def log_transaction(cursor, demande_id, matricule, action, ip_address):
-    print("if the ip returned from ip_adress is always 127.0.0.1 we will use this function : ", get_local_ip())
+def log_transaction(cursor, num_demande, matricule, action, ip_address):
     q = """
-    INSERT INTO Journaux (Id_Demande, Utilisateur_Matricule, Action, Nom_PC, Adresse_IP, Session_Windows)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO Journal (
+        UTILISATEUR, TYPE_OPERATION, DATE, COMPTE_WIN, NOM_MACHINE,
+        ADRESSE_IP, NOM_TABLE, CODE_PIECE, OBSERVATION, EXERCICE
+    )
+    VALUES (?, ?, GETDATE(), ?, ?, ?, 'Demandes', ?, ?, ?)
     """
-    cursor.execute(q, (demande_id, matricule, action, socket.gethostname(), ip_address, getpass.getuser()))
+    cursor.execute(q, (
+        matricule,
+        action,
+        getpass.getuser(),
+        socket.gethostname(),
+        ip_address,
+        num_demande,
+        action,
+        str(datetime.now().year)
+    ))
 
 @app.route('/api/login', methods=['POST'])
 def login():
@@ -147,71 +156,57 @@ def create_demande():
     requested_engins = data.get('engins', [])
     for code in requested_engins:
         cursor.execute("""
-            SELECT d.Id FROM Demandes d
-            JOIN Demande_Engins de ON d.Id = de.Id_Demande
+            SELECT d.num_demande FROM Demandes d
+            JOIN Demande_Engins de ON d.num_demande = de.num_demande
             WHERE de.Code_Prestation = ? AND d.Status NOT IN ('Clôturé', 'Refusé')
         """, (code,))
         if cursor.fetchone():
             conn.close()
             return jsonify({"error": f"L'engin (CODE: {code}) est déjà assigné dans une demande non clôturée."}), 400
             
-    # 2. Validation for Ref ODS
-    ref_ods = data.get('ref_ods_client')
-    if ref_ods and ref_ods.strip():
-        cursor.execute("SELECT Id FROM Demandes WHERE Ref_ODS_Client = ?", (ref_ods,))
-        if cursor.fetchone():
-            conn.close()
-            return jsonify({"error": "La Référence ODS Client existe déjà dans la base."}), 400
-            
-    # Format N_DSL
+    # 2. Generate num_demande
     year = str(datetime.now().year)[-2:]
     structure = data.get('structure', 'GEN')
     
-    cursor.execute("SELECT MAX(Id) FROM Demandes")
-    max_id = cursor.fetchone()[0]
-    next_id = (max_id or 0) + 1
+    # Compteur séquentiel basé sur le nombre de demandes existantes
+    cursor.execute("SELECT COUNT(*) FROM Demandes")
+    count = cursor.fetchone()[0]
+    next_num = count + 1
     
-    n_dsl = f"{structure}-{next_id}-{year}"
+    num_demande = f"{structure}-{next_num}-{year}"
     utilisateur = data.get('creator_matricule')
     
     q = """
     INSERT INTO Demandes (
-        N_DSL, Code_Structure, Code_Affaire, Client, Ref_ODS_Client, 
-        Lieu_Prestation, Date_Debut_Prestation, Date_Fin_Prestation,
-        Nature_Prestation, Observation, utilisateur, Status
+        num_demande, Code_Affaire, 
+        Date_Debut_Prestation, Date_Fin_Prestation,
+        [description], Observation, utilisateur, Status
     )
-    OUTPUT INSERTED.Id
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'En Attente')
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'En Attente')
     """
     params = (
-        n_dsl, 
-        data.get('code_structure'), 
+        num_demande,  
         data.get('code_affaire'), 
-        data.get('client'), 
-        data.get('ref_ods_client'),
-        data.get('lieu_prestation'), 
         data.get('date_debut'), 
         data.get('date_fin'), 
-        data.get('nature_prestation'), 
+        data.get('description'), 
         data.get('observation'), 
         utilisateur
     )
     cursor.execute(q, params)
-    demande_id = cursor.fetchone()[0]
     
     for code in requested_engins:
-        cursor.execute("INSERT INTO Demande_Engins (Id_Demande, Code_Prestation) VALUES (?, ?)", (demande_id, code))
+        cursor.execute("INSERT INTO Demande_Engins (num_demande, Code_Prestation) VALUES (?, ?)", (num_demande, code))
         
-    log_transaction(cursor, demande_id, utilisateur, "Création de la demande", request.remote_addr)
+    log_transaction(cursor, num_demande, utilisateur, "Création de la demande", request.remote_addr)
     
     conn.commit()
     conn.close()
     
-    return jsonify({"message": "Demande créée", "n_dsl": n_dsl, "id": demande_id}), 201
+    return jsonify({"message": "Demande créée", "num_demande": num_demande}), 201
 
 @app.route('/api/demandes', methods=['GET'])
 def get_demandes():
-    # Roles filtering
     matricule = request.args.get("matricule")
     role = request.args.get("role")
     structure = request.args.get("structure")
@@ -219,24 +214,23 @@ def get_demandes():
     conn = get_db_connection()
     cursor = conn.cursor()
     
+    # On utilise la vue pour récupérer client et structure
     q = """
-    SELECT d.Id, d.N_DSL, d.Date_Demande, d.Client, d.Status,
+    SELECT v.num_demande, v.Date_Demande, v.CLIENT, v.Status,
+           v.Code_Structure, v.Structure_Initial,
            rh.nom, rh.prenom
-    FROM Demandes d
-    LEFT JOIN RH rh ON d.utilisateur = rh.matricule
+    FROM vue_demandes v
+    LEFT JOIN RH rh ON v.utilisateur = rh.matricule
     """
     
-    # Specific filtering Logic
     if structure == 'DSL' and role == 'chef departement':
-        # DSL Chef sees ALL partially Validated requests or requests already in DSL process
-        q += " WHERE d.Status IN ('Validé', 'Approuvé par DSL', 'Clôturé')"
+        q += " WHERE v.Status IN ('Validé', 'Approuvé par DSL', 'Clôturé')"
     elif role == 'agent':
-        q += f" WHERE d.utilisateur = '{matricule}'"
+        q += f" WHERE v.utilisateur = '{matricule}'"
     elif role == 'chef departement' or role == 'secretaire':
-        # See all in structure
         q += f" WHERE rh.structure = '{structure}'"
         
-    q += " ORDER BY d.Date_Demande DESC"
+    q += " ORDER BY v.Date_Demande DESC"
     
     cursor.execute(q)
     rows = cursor.fetchall()
@@ -245,29 +239,31 @@ def get_demandes():
     results = []
     for r in rows:
         results.append({
-            "id": r[0],
-            "n_dsl": r[1],
-            "date_demande": r[2].strftime("%Y-%m-%d %H:%M") if r[2] else "",
-            "client": r[3],
-            "status": r[4],
-            "demandeur": f"{r.nom} {r.prenom}" if r.nom else ""
+            "num_demande": r[0],
+            "date_demande": r[1].strftime("%Y-%m-%d %H:%M") if r[1] else "",
+            "client": r[2] or "",
+            "status": r[3],
+            "code_structure": r[4] or "",
+            "structure_initial": r[5] or "",
+            "demandeur": f"{r[6]} {r[7]}" if r[6] else ""
         })
         
     return jsonify(results)
 
-@app.route('/api/demandes/<int:demande_id>', methods=['GET'])
-def get_demande_detail(demande_id):
+@app.route('/api/demandes/<num_demande>', methods=['GET'])
+def get_demande_detail(num_demande):
     conn = get_db_connection()
     cursor = conn.cursor()
     
+    # On utilise la vue pour inclure client et structure
     q = """
-    SELECT d.*, 
-           dem_rh.nom as dem_nom, dem_rh.prenom as dem_prenom, dem_rh.role as dem_role
-    FROM Demandes d
-    LEFT JOIN RH dem_rh ON d.utilisateur = dem_rh.matricule
-    WHERE d.Id = ?
+    SELECT v.*, 
+           rh.nom as dem_nom, rh.prenom as dem_prenom, rh.role as dem_role
+    FROM vue_demandes v
+    LEFT JOIN RH rh ON v.utilisateur = rh.matricule
+    WHERE v.num_demande = ?
     """
-    cursor.execute(q, (demande_id,))
+    cursor.execute(q, (num_demande,))
     columns = [column[0] for column in cursor.description]
     row = cursor.fetchone()
     
@@ -282,8 +278,8 @@ def get_demande_detail(demande_id):
         SELECT eq.[Code Prestation], eq.Prestation 
         FROM Demande_Engins de
         JOIN ListeEquipement eq ON de.Code_Prestation = eq.[Code Prestation]
-        WHERE de.Id_Demande = ?
-    """, (demande_id,))
+        WHERE de.num_demande = ?
+    """, (num_demande,))
     engins = [{"code": r[0], "prestation": r[1]} for r in cursor.fetchall()]
     conn.close()
     
@@ -296,9 +292,8 @@ def get_demande_detail(demande_id):
             
     return jsonify(d_dict)
 
-@app.route('/api/demandes/<int:demande_id>/valider', methods=['POST'])
-def valider_demande(demande_id):
-    # Chef departement (local structure) validation
+@app.route('/api/demandes/<num_demande>/valider', methods=['POST'])
+def valider_demande(num_demande):
     data = request.json
     matricule = data.get('matricule')
     
@@ -308,16 +303,15 @@ def valider_demande(demande_id):
         UPDATE Demandes 
         SET Status = 'Validé', 
             date_validation_demandeur = GETDATE()
-        WHERE Id = ?
-    """, (demande_id,))
-    log_transaction(cursor, demande_id, matricule, "Validation ISI (Chef Département)", request.remote_addr)
+        WHERE num_demande = ?
+    """, (num_demande,))
+    log_transaction(cursor, num_demande, matricule, "Validation (Chef Département)", request.remote_addr)
     conn.commit()
     conn.close()
     return jsonify({"message": "Validé avec succès"})
 
-@app.route('/api/demandes/<int:demande_id>/dsl_validate', methods=['POST'])
-def dsl_valider_demande(demande_id):
-    # DSL Chef validation (fills OT_ODS and fournisseur)
+@app.route('/api/demandes/<num_demande>/dsl_validate', methods=['POST'])
+def dsl_valider_demande(num_demande):
     data = request.json
     matricule = data.get('matricule')
     ot_ods = data.get('ot_ods', '')
@@ -327,7 +321,7 @@ def dsl_valider_demande(demande_id):
     cursor = conn.cursor()
     
     if ot_ods and ot_ods.strip():
-        cursor.execute("SELECT Id FROM Demandes WHERE OT_ODS = ? AND Id != ?", (ot_ods, demande_id))
+        cursor.execute("SELECT num_demande FROM Demandes WHERE OT_ODS = ? AND num_demande != ?", (ot_ods, num_demande))
         if cursor.fetchone():
             conn.close()
             return jsonify({"error": "La Référence OT_ODS existe déjà dans la base."}), 400
@@ -335,64 +329,66 @@ def dsl_valider_demande(demande_id):
     cursor.execute("""
         UPDATE Demandes 
         SET Status = 'Approuvé par DSL', 
-            Enregistre_A_DSL = 1, 
             date_validation_prestataire = GETDATE(),
             OT_ODS = ?,
             Fournisseur = ?
-        WHERE Id = ?
-    """, (ot_ods, fournisseur, demande_id))
-    log_transaction(cursor, demande_id, matricule, "Validation Structure DSL", request.remote_addr)
+        WHERE num_demande = ?
+    """, (ot_ods, fournisseur, num_demande))
+    log_transaction(cursor, num_demande, matricule, "Validation Structure DSL", request.remote_addr)
     conn.commit()
     conn.close()
     return jsonify({"message": "Enregistré au DSL avec succès"})
 
-@app.route('/api/demandes/<int:demande_id>/cloturer', methods=['POST'])
-def cloturer_demande(demande_id):
+@app.route('/api/demandes/<num_demande>/cloturer', methods=['POST'])
+def cloturer_demande(num_demande):
     data = request.json
     matricule = data.get('matricule') if (data and 'matricule' in data) else 'System'
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE Demandes SET Status = 'Clôturé' WHERE Id = ?", (demande_id,))
-    log_transaction(cursor, demande_id, matricule, "Clôture de la demande", request.remote_addr)
+    cursor.execute("UPDATE Demandes SET Status = 'Clôturé' WHERE num_demande = ?", (num_demande,))
+    log_transaction(cursor, num_demande, matricule, "Clôture de la demande", request.remote_addr)
     conn.commit()
     conn.close()
     return jsonify({"message": "Clôturé avec succès"})
 
-@app.route('/api/demandes/<int:demande_id>/refuser', methods=['POST'])
-def refuser_demande(demande_id):
+@app.route('/api/demandes/<num_demande>/refuser', methods=['POST'])
+def refuser_demande(num_demande):
     data = request.json
     matricule = data.get('matricule') if (data and 'matricule' in data) else 'System'
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE Demandes SET Status = 'Refusé' WHERE Id = ?", (demande_id,))
-    log_transaction(cursor, demande_id, matricule, "Refus de la demande", request.remote_addr)
+    cursor.execute("UPDATE Demandes SET Status = 'Refusé' WHERE num_demande = ?", (num_demande,))
+    log_transaction(cursor, num_demande, matricule, "Refus de la demande", request.remote_addr)
     conn.commit()
     conn.close()
     return jsonify({"message": "Demande Refusée"})
 
-@app.route('/api/demandes/<int:demande_id>/journaux', methods=['GET'])
-def get_demande_journaux(demande_id):
+@app.route('/api/demandes/<num_demande>/journaux', methods=['GET'])
+def get_demande_journaux(num_demande):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT j.Action, j.Date_Action, j.Nom_PC, j.Adresse_IP, j.Session_Windows, rh.nom, rh.prenom
-        FROM Journaux j
-        LEFT JOIN RH rh ON j.Utilisateur_Matricule = rh.matricule
-        WHERE j.Id_Demande = ?
-        ORDER BY j.Date_Action DESC
-    """, (demande_id,))
+        SELECT j.TYPE_OPERATION, j.[DATE], j.NOM_MACHINE, j.ADRESSE_IP, 
+               j.COMPTE_WIN, j.UTILISATEUR, j.OBSERVATION,
+               rh.nom, rh.prenom
+        FROM Journal j
+        LEFT JOIN RH rh ON j.UTILISATEUR = rh.matricule
+        WHERE j.NOM_TABLE = 'Demandes' AND j.CODE_PIECE = ?
+        ORDER BY j.[DATE] DESC
+    """, (num_demande,))
     
     rows = cursor.fetchall()
     conn.close()
     
     return jsonify([{
-        "action": r.Action,
-        "date_action": r.Date_Action.strftime("%Y-%m-%d %H:%M:%S") if r.Date_Action else "",
-        "nom_pc": r.Nom_PC,
-        "session_windows": r.Session_Windows,
-        "adresse_ip": r.Adresse_IP,
-        "session_windows": r.Session_Windows,
-        "utilisateur": f"{r.nom} {r.prenom}" if r.nom else "Système"
+        "action": r[0],
+        "date_action": r[1].strftime("%Y-%m-%d %H:%M:%S") if r[1] else "",
+        "nom_pc": r[2],
+        "adresse_ip": r[3],
+        "session_windows": r[4],
+        "matricule": r[5],
+        "observation": r[6],
+        "utilisateur": f"{r[7]} {r[8]}" if r[7] else r[5] or "Système"
     } for r in rows])
 
 if __name__ == '__main__':

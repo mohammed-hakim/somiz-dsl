@@ -26,17 +26,6 @@ GO
 
 
 
-
-
-
-
-
-
-
-
-
-
-
 CREATE TABLE [structures] (
     [COD_STRUCT_H] NVARCHAR(50) PRIMARY KEY,
     [INITIAL] NVARCHAR(50),
@@ -46,7 +35,7 @@ CREATE TABLE [structures] (
 GO
 
 CREATE TABLE [affaires] (
-    [Code_Affaire] NVARCHAR(50) PRIMARY KEY,
+    [Code_Affaire] NVARCHAR(7) PRIMARY KEY,
     [NUM_OSC] NVARCHAR(100),
     [DESIGN] NVARCHAR(255),
     [CLIENT] NVARCHAR(255),
@@ -85,7 +74,6 @@ GO
 
 
 
-
 INSERT INTO [structures] ([COD_STRUCT_H], [INITIAL], [INTITULE], [NATURE_STRUCTURE])
 VALUES 
 ('850000S', 'GMO', 'SERVICE GESTION MAINS D''OEUVRES', 'SER'),
@@ -106,22 +94,6 @@ GO
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 CREATE TABLE [ListeEquipement] (
     [Code Domaine]    NVARCHAR(10),
     [Code Prestation] NVARCHAR(20) PRIMARY KEY,
@@ -134,7 +106,6 @@ CREATE TABLE [ListeEquipement] (
     [Nature]          NVARCHAR(5)
 );
 GO
-
 
 
 
@@ -180,83 +151,76 @@ GO
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Demandes]') AND type in (N'U'))
-BEGIN
-    CREATE TABLE [Demandes] (
-        [Id] INT IDENTITY(1,1) PRIMARY KEY,
-        [N_DSL] NVARCHAR(100) UNIQUE,
+CREATE TABLE [Demandes] (
+        [num_demande] NVARCHAR(100) PRIMARY KEY,
         [Date_Demande] DATETIME DEFAULT GETDATE(),
-        
-        [Code_Structure] NVARCHAR(50),
-        [Code_Affaire] NVARCHAR(50),
-        
-        [Client] NVARCHAR(255),
-        [Ref_ODS_Client] NVARCHAR(255),
-        
-        [Lieu_Prestation] NVARCHAR(255),
+        [Code_Affaire] NVARCHAR(7),
         [Date_Debut_Prestation] DATETIME,
         [Date_Fin_Prestation] DATETIME,
-        
-        [Nature_Prestation] NVARCHAR(MAX),
-        [Observation] NVARCHAR(MAX),
-        
+        [description] VARCHAR(MAX),
+        [Observation] VARCHAR(MAX),
         [utilisateur] NVARCHAR(20),
         [date_validation_demandeur] DATETIME,
-        
-        [Status] NVARCHAR(50) DEFAULT 'En Attente', -- En Attente, Validé, Clôturé, Refusé
-        
-        [Enregistre_A_DSL] BIT DEFAULT 0,
+        [Status] NVARCHAR(50) DEFAULT 'En Attente',
         [date_validation_prestataire] DATETIME,
         [OT_ODS] NVARCHAR(255),
-        [Fournisseur] NVARCHAR(255)
-    );
-END
+        [Fournisseur] NVARCHAR(255),
+
+        CONSTRAINT FK_Demandes_Affaire FOREIGN KEY (Code_Affaire) 
+        REFERENCES affaires(Code_Affaire)
+);
 GO
 
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Demande_Engins]') AND type in (N'U'))
-BEGIN
-    CREATE TABLE [Demande_Engins] (
+
+CREATE TABLE [Demande_Engins] (
         [Id] INT IDENTITY(1,1) PRIMARY KEY,
-        [Id_Demande] INT,
+        [num_demande] NVARCHAR(100),
         [Code_Prestation] NVARCHAR(20),
         
-        CONSTRAINT FK_DemandeEngins_Demande FOREIGN KEY (Id_Demande) REFERENCES Demandes(Id),
+        CONSTRAINT FK_DemandeEngins_Demande FOREIGN KEY (num_demande) REFERENCES Demandes(num_demande),
         CONSTRAINT FK_DemandeEngins_Equipement FOREIGN KEY (Code_Prestation) REFERENCES ListeEquipement([Code Prestation])
-    );
-END
+);
 GO
 
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Journaux]') AND type in (N'U'))
-BEGIN
-    CREATE TABLE [Journaux] (
-        [Id] INT IDENTITY(1,1) PRIMARY KEY,
-        [Id_Demande] INT,
-        [Utilisateur_Matricule] NVARCHAR(20),
-        [Action] NVARCHAR(255),
-        [Nom_PC] NVARCHAR(255),
-        [Adresse_IP] NVARCHAR(255),
-        [Session_Windows] NVARCHAR(255),
-        [Date_Action] DATETIME DEFAULT GETDATE(),
-        
-        CONSTRAINT FK_Journaux_Demande FOREIGN KEY (Id_Demande) REFERENCES Demandes(Id)
-    );
-END
+
+CREATE VIEW vue_demandes AS
+SELECT 
+    d.num_demande,
+    d.Date_Demande,
+    d.Code_Affaire,
+    d.Date_Debut_Prestation,
+    d.Date_Fin_Prestation,
+    d.[description],
+    d.Observation,
+    d.utilisateur,
+    d.date_validation_demandeur,
+    d.Status,
+    d.date_validation_prestataire,
+    d.OT_ODS,
+    d.Fournisseur,
+    a.CLIENT,
+    s.COD_STRUCT_H AS Code_Structure,
+    s.INITIAL AS Structure_Initial,
+    s.INTITULE AS Structure_Intitule
+FROM Demandes d
+LEFT JOIN affaires a ON d.Code_Affaire = a.Code_Affaire
+LEFT JOIN structures s ON a.COD_STRUCT_H = s.COD_STRUCT_H;
 GO
 
+
+CREATE TABLE [Journal] (
+        [NUM_ORDRE]        INT IDENTITY(1,1) PRIMARY KEY,
+        [UTILISATEUR]      NVARCHAR(50),
+        [TYPE_OPERATION]   NVARCHAR(255),
+        [DATE]             DATETIME DEFAULT GETDATE(),
+        [COMPTE_WIN]       NVARCHAR(255),
+        [NOM_MACHINE]      NVARCHAR(255),
+        [ADRESSE_IP]       NVARCHAR(50),
+        [NOM_TABLE]        NVARCHAR(255),
+        [CODE_PIECE]       NVARCHAR(255),
+        [ANCIENNE_VALEUR]  NVARCHAR(MAX),
+        [OBSERVATION]      NVARCHAR(MAX),
+        [DATE_EXECUTABLE]  DATETIME,
+        [EXERCICE]         NVARCHAR(10)
+);
+GO
