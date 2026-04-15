@@ -1,7 +1,69 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Check, CheckCircle, FileText, Anchor, History, XCircle, Printer, ScrollText } from 'lucide-react';
+import { Check, CheckCircle, FileText, Anchor, History, XCircle, Printer, ScrollText, AlertTriangle, Play, X, Ban } from 'lucide-react';
+
+const getStatusStyle = (status) => {
+   switch (status) {
+      case 'Validé': return 'bg-green-100 text-green-700';
+      case 'Clôturé': return 'bg-slate-200 text-slate-600';
+      case 'Approuvé': return 'bg-indigo-100 text-indigo-700';
+      case 'En Cours': return 'bg-blue-100 text-blue-700';
+      case 'Rejeté': return 'bg-red-100 text-red-700';
+      case 'Annulé': return 'bg-red-50 text-red-500';
+      default: return 'bg-orange-100 text-orange-700';
+   }
+};
+
+const MotifModal = ({ isOpen, title, onConfirm, onClose }) => {
+   const [motif, setMotif] = useState('');
+   const [error, setError] = useState('');
+
+   if (!isOpen) return null;
+
+   const handleSubmit = () => {
+      if (!motif.trim()) {
+         setError('Le motif est obligatoire.');
+         return;
+      }
+      onConfirm(motif.trim());
+      setMotif('');
+      setError('');
+   };
+
+   return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden animate-in">
+            <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+               <h3 className="font-bold text-slate-800 text-lg">{title}</h3>
+               <button onClick={() => { onClose(); setMotif(''); setError(''); }} className="text-slate-400 hover:text-slate-600 transition">
+                  <X className="w-5 h-5" />
+               </button>
+            </div>
+            <div className="p-6">
+               <label className="block text-sm font-semibold text-slate-700 mb-2">Motif <span className="text-red-500">*</span></label>
+               <textarea
+                  value={motif}
+                  onChange={(e) => { setMotif(e.target.value); setError(''); }}
+                  rows={4}
+                  placeholder="Veuillez saisir le motif..."
+                  className="w-full px-4 py-3 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm resize-none transition"
+                  autoFocus
+               />
+               {error && <p className="text-red-500 text-xs mt-2 font-medium">{error}</p>}
+            </div>
+            <div className="bg-slate-50 border-t border-slate-200 px-6 py-4 flex justify-end gap-3">
+               <button onClick={() => { onClose(); setMotif(''); setError(''); }} className="px-5 py-2.5 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition">
+                  Annuler
+               </button>
+               <button onClick={handleSubmit} className="px-5 py-2.5 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg shadow transition">
+                  Confirmer
+               </button>
+            </div>
+         </div>
+      </div>
+   );
+};
 
 const DemandeView = ({ user }) => {
    const { num_demande } = useParams();
@@ -13,6 +75,9 @@ const DemandeView = ({ user }) => {
 
    // DSL Local form state
    const [dslForm, setDslForm] = useState({ ot_ods: '', fournisseur: '' });
+
+   // Modal state
+   const [modal, setModal] = useState({ open: false, title: '', action: null });
 
    const fetchJournaux = async () => {
       try {
@@ -41,8 +106,27 @@ const DemandeView = ({ user }) => {
    }, [num_demande]);
 
    const handleValider = async () => {
-      await axios.post(`http://localhost:5000/api/demandes/${encodeURIComponent(num_demande)}/valider`, { matricule: user.matricule });
-      fetchDemande();
+      try {
+         setErrorStatus('');
+         await axios.post(`http://localhost:5000/api/demandes/${encodeURIComponent(num_demande)}/valider`, { matricule: user.matricule });
+         fetchDemande();
+      } catch (err) {
+         setErrorStatus(err.response?.data?.error || 'Erreur lors de la validation.');
+      }
+   };
+
+   const handleRejeter = (motif) => {
+      setErrorStatus('');
+      axios.post(`http://localhost:5000/api/demandes/${encodeURIComponent(num_demande)}/rejeter`, {
+         matricule: user.matricule,
+         motif
+      }).then(() => {
+         setModal({ open: false, title: '', action: null });
+         fetchDemande();
+      }).catch(err => {
+         setErrorStatus(err.response?.data?.error || 'Erreur lors du rejet.');
+         setModal({ open: false, title: '', action: null });
+      });
    };
 
    const handleDslValider = async () => {
@@ -55,27 +139,86 @@ const DemandeView = ({ user }) => {
          });
          fetchDemande();
       } catch (err) {
-         setErrorStatus(err.response?.data?.error || 'Erreur lors de la validation DSL.');
+         setErrorStatus(err.response?.data?.error || 'Erreur lors de l\'approbation DSL.');
       }
    };
 
-   const handleRefuser = async () => {
-      if (window.confirm('Êtes-vous sûr de vouloir refuser cette demande ? (Ceci libérera les engins)')) {
-         await axios.post(`http://localhost:5000/api/demandes/${encodeURIComponent(num_demande)}/refuser`, { matricule: user.matricule });
+   const handleEnCours = async () => {
+      try {
+         setErrorStatus('');
+         await axios.post(`http://localhost:5000/api/demandes/${encodeURIComponent(num_demande)}/en_cours`, { matricule: user.matricule });
          fetchDemande();
+      } catch (err) {
+         setErrorStatus(err.response?.data?.error || 'Erreur lors du passage en cours.');
       }
    };
 
    const handleCloturer = async () => {
-      await axios.post(`http://localhost:5000/api/demandes/${encodeURIComponent(num_demande)}/cloturer`, { matricule: user.matricule });
-      fetchDemande();
+      try {
+         setErrorStatus('');
+         await axios.post(`http://localhost:5000/api/demandes/${encodeURIComponent(num_demande)}/cloturer`, { matricule: user.matricule });
+         fetchDemande();
+      } catch (err) {
+         setErrorStatus(err.response?.data?.error || 'Erreur lors de la clôture.');
+      }
+   };
+
+   const handleAnnuler = (motif) => {
+      setErrorStatus('');
+      axios.post(`http://localhost:5000/api/demandes/${encodeURIComponent(num_demande)}/annuler`, {
+         matricule: user.matricule,
+         motif
+      }).then(() => {
+         setModal({ open: false, title: '', action: null });
+         fetchDemande();
+      }).catch(err => {
+         setErrorStatus(err.response?.data?.error || 'Erreur lors de l\'annulation.');
+         setModal({ open: false, title: '', action: null });
+      });
+   };
+
+   const openRejetModal = () => {
+      setModal({ open: true, title: 'Motif du Rejet', action: 'rejeter' });
+   };
+
+   const openAnnulerModal = () => {
+      setModal({ open: true, title: 'Motif de l\'Annulation', action: 'annuler' });
+   };
+
+   const handleModalConfirm = (motif) => {
+      if (modal.action === 'rejeter') handleRejeter(motif);
+      else if (modal.action === 'annuler') handleAnnuler(motif);
+   };
+
+   // Can the current user annuler this demande?
+   const canAnnuler = () => {
+      if (!demande) return false;
+      const s = demande.Status;
+      if (['Clôturé', 'Rejeté', 'Annulé'].includes(s)) return false;
+      // Agent can cancel their own if still En Attente
+      if (user.role === 'agent' && demande.utilisateur === user.matricule && s === 'En Attente') return true;
+      // Chef departement (demandeur) can cancel if En Attente or Validé
+      if (user.role === 'chef departement' && user.structure !== 'DSL' && ['En Attente', 'Validé'].includes(s)) return true;
+      // Chef DSL can cancel at any active stage
+      if (user.role === 'chef departement' && user.structure === 'DSL') return true;
+      return false;
    };
 
    if (loading) return <div className="text-center py-20 text-slate-500">Chargement...</div>;
    if (!demande) return <div className="text-center py-20 text-red-500">Demande introuvable.</div>;
 
+   const isDone = ['Clôturé', 'Rejeté', 'Annulé'].includes(demande.Status);
+
    return (
       <div className="max-w-4xl mx-auto px-4 py-8 print:p-0 print:max-w-none">
+
+         {/* MOTIF MODAL */}
+         <MotifModal
+            isOpen={modal.open}
+            title={modal.title}
+            onConfirm={handleModalConfirm}
+            onClose={() => setModal({ open: false, title: '', action: null })}
+         />
 
          {/* HEADER VISIBLE ONLY ON SCREEN */}
          <div className="mb-6 flex justify-between items-center print:hidden">
@@ -84,12 +227,7 @@ const DemandeView = ({ user }) => {
                <button onClick={() => window.print()} className="flex items-center gap-2 text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 px-4 py-1.5 rounded-lg font-medium shadow-sm transition">
                   <Printer className="w-4 h-4" /> Imprimer
                </button>
-               <div className={`text-sm px-3 py-1.5 rounded-full font-bold ${demande.Status === 'Validé' ? 'bg-green-100 text-green-700' :
-                  demande.Status === 'Clôturé' ? 'bg-slate-200 text-slate-600' :
-                     demande.Status === 'Approuvé par DSL' ? 'bg-indigo-100 text-indigo-700' :
-                        demande.Status === 'Refusé' ? 'bg-red-100 text-red-700' :
-                           'bg-orange-100 text-orange-700'
-                  }`}>
+               <div className={`text-sm px-3 py-1.5 rounded-full font-bold ${getStatusStyle(demande.Status)}`}>
                   {demande.Status}
                </div>
             </div>
@@ -122,6 +260,7 @@ const DemandeView = ({ user }) => {
                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 print:text-black print:border-b print:border-black print:pb-1">1. Imputation</h4>
                      <div className="space-y-2 text-sm text-slate-700 print:text-black font-medium">
                         <p><span className="w-32 inline-block text-slate-500 print:text-black">Code Affaire:</span> {demande.Code_Affaire}</p>
+                        <p><span className="w-32 inline-block text-slate-500 print:text-black">Réf. ODS Client:</span> {demande.ref_ods_client}</p>
                         <p><span className="w-32 inline-block text-slate-500 print:text-black">Client:</span> {demande.CLIENT || '-'}</p>
                         <p><span className="w-32 inline-block text-slate-500 print:text-black">Structure:</span> {demande.Structure_Intitule || demande.Code_Structure || '-'}</p>
                      </div>
@@ -139,6 +278,7 @@ const DemandeView = ({ user }) => {
                <div className="print:border print:border-black print:p-3">
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 print:text-black print:border-b print:border-black print:pb-1">3. Description de la Prestation</h4>
                   <div className="p-4 bg-slate-50 rounded-lg text-sm text-slate-700 whitespace-pre-wrap print:bg-white print:p-0 print:text-black font-medium">
+                     <p className="mb-2"><strong>Lieu:</strong> {demande.lieu_prestation}</p>
                      {demande.description}
                      {demande.Observation && <div className="mt-4 pt-4 border-t border-slate-200 print:border-black print:mt-2 print:pt-2"><strong>Obs:</strong> {demande.Observation}</div>}
                   </div>
@@ -156,6 +296,23 @@ const DemandeView = ({ user }) => {
                      ))}
                   </ul>
                </div>
+
+               {/* MOTIF DE REJET / ANNULATION */}
+               {demande.motif_rejet && (demande.Status === 'Rejeté' || demande.Status === 'Annulé') && (
+                  <div className={`rounded-xl p-5 border ${demande.Status === 'Rejeté' ? 'bg-red-50 border-red-200' : 'bg-orange-50 border-orange-200'}`}>
+                     <div className="flex items-start gap-3">
+                        <AlertTriangle className={`w-5 h-5 mt-0.5 flex-shrink-0 ${demande.Status === 'Rejeté' ? 'text-red-500' : 'text-orange-500'}`} />
+                        <div>
+                           <h4 className={`text-sm font-bold ${demande.Status === 'Rejeté' ? 'text-red-800' : 'text-orange-800'}`}>
+                              {demande.Status === 'Rejeté' ? 'Motif du Rejet' : 'Motif de l\'Annulation'}
+                           </h4>
+                           <p className={`mt-1 text-sm ${demande.Status === 'Rejeté' ? 'text-red-700' : 'text-orange-700'}`}>
+                              {demande.motif_rejet}
+                           </p>
+                        </div>
+                     </div>
+                  </div>
+               )}
 
                {/* DSL REGISTRATION BLOCK FOR PRINTER ONLY */}
                <div className="hidden print:block border border-black p-3 mt-4">
@@ -194,6 +351,65 @@ const DemandeView = ({ user }) => {
          {/* TRACKING TIMELINE / SCREEN ONLY */}
          <div className="print:hidden">
             <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><History className="w-5 h-5" /> Suivi de la Demande</h3>
+            
+            {/* Steps Progress Bar */}
+            <div className="mb-8">
+               {(() => {
+                  const steps = [
+                     { label: 'En Attente', key: 'en_attente' },
+                     { label: 'Validé', key: 'valide' },
+                     { label: 'Approuvé', key: 'approuve' },
+                     { label: 'En Cours', key: 'en_cours' },
+                     { label: 'Clôturé', key: 'cloture' },
+                  ];
+                  
+                  const statusOrder = { 'En Attente': 0, 'Validé': 1, 'Approuvé': 2, 'En Cours': 3, 'Clôturé': 4 };
+                  const currentIdx = statusOrder[demande.Status] ?? -1;
+                  const isTerminal = ['Rejeté', 'Annulé'].includes(demande.Status);
+
+                  return (
+                     <div className="relative">
+                        {isTerminal && (
+                           <div className={`mb-4 p-4 rounded-xl border flex items-center gap-3 ${
+                              demande.Status === 'Rejeté' ? 'bg-red-50 border-red-200' : 'bg-orange-50 border-orange-200'
+                           }`}>
+                              <XCircle className={`w-5 h-5 ${demande.Status === 'Rejeté' ? 'text-red-500' : 'text-orange-500'}`} />
+                              <span className={`font-bold text-sm ${demande.Status === 'Rejeté' ? 'text-red-700' : 'text-orange-700'}`}>
+                                 Demande {demande.Status}
+                              </span>
+                           </div>
+                        )}
+                        <div className="flex items-center">
+                           {steps.map((step, idx) => {
+                              const isActive = idx <= currentIdx && !isTerminal;
+                              const isCurrent = idx === currentIdx && !isTerminal;
+                              return (
+                                 <React.Fragment key={step.key}>
+                                    <div className="flex flex-col items-center flex-1">
+                                       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all ${
+                                          isActive 
+                                             ? (isCurrent ? 'bg-blue-600 border-blue-600 text-white scale-110 shadow-lg shadow-blue-200' : 'bg-green-500 border-green-500 text-white')
+                                             : 'bg-white border-slate-300 text-slate-400'
+                                       }`}>
+                                          {isActive && !isCurrent ? <Check className="w-4 h-4" /> : idx + 1}
+                                       </div>
+                                       <span className={`text-[10px] mt-1.5 font-medium text-center ${isActive ? 'text-slate-800' : 'text-slate-400'}`}>
+                                          {step.label}
+                                       </span>
+                                    </div>
+                                    {idx < steps.length - 1 && (
+                                       <div className={`flex-1 h-0.5 -mt-4 ${idx < currentIdx && !isTerminal ? 'bg-green-400' : 'bg-slate-200'}`} />
+                                    )}
+                                 </React.Fragment>
+                              );
+                           })}
+                        </div>
+                     </div>
+                  );
+               })()}
+            </div>
+
+            {/* Detail Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                <div className="p-5 bg-white border border-slate-200 rounded-xl shadow-sm">
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Créée par</h4>
@@ -202,24 +418,28 @@ const DemandeView = ({ user }) => {
                   <div className="mt-3 flex items-center gap-1 text-green-600 text-xs font-bold"><CheckCircle className="w-4 h-4" /> Initiée ({demande.Date_Demande})</div>
                </div>
 
-               <div className="p-5 bg-white border border-slate-200 rounded-xl shadow-sm border-l-4 border-l-green-400">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Validation Département</h4>
-                  {demande.Status === 'Refusé' ? (
-                     <div className="mt-3 flex items-center gap-1 text-red-600 text-xs font-bold"><XCircle className="w-4 h-4" /> Refusé/Annulé</div>
+               <div className={`p-5 bg-white border border-slate-200 rounded-xl shadow-sm border-l-4 ${
+                  demande.Status === 'Rejeté' && !demande.date_validation_demandeur ? 'border-l-red-400' : 'border-l-green-400'
+               }`}>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Validation Département Demandeur</h4>
+                  {demande.Status === 'Rejeté' && !demande.date_validation_demandeur ? (
+                     <div className="mt-3 flex items-center gap-1 text-red-600 text-xs font-bold"><XCircle className="w-4 h-4" /> Rejeté</div>
                   ) : demande.date_validation_demandeur ? (
-                     <>
-                        <div className="mt-3 flex items-center gap-1 text-green-600 text-xs font-bold"><CheckCircle className="w-4 h-4" /> Validé le {demande.date_validation_demandeur}</div>
-                     </>
+                     <div className="mt-3 flex items-center gap-1 text-green-600 text-xs font-bold"><CheckCircle className="w-4 h-4" /> Validé le {demande.date_validation_demandeur}</div>
                   ) : (
                      <span className="text-slate-400 text-sm">En Attente...</span>
                   )}
                </div>
 
-               <div className="p-5 bg-white border border-slate-200 rounded-xl shadow-sm border-l-4 border-l-indigo-400">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Validation Structure DSL</h4>
-                  {demande.date_validation_prestataire ? (
+               <div className={`p-5 bg-white border border-slate-200 rounded-xl shadow-sm border-l-4 ${
+                  demande.Status === 'Rejeté' && demande.date_validation_demandeur ? 'border-l-red-400' : 'border-l-indigo-400'
+               }`}>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Approbation Chef Département DSL</h4>
+                  {demande.Status === 'Rejeté' && demande.date_validation_demandeur ? (
+                     <div className="mt-3 flex items-center gap-1 text-red-600 text-xs font-bold"><XCircle className="w-4 h-4" /> Rejeté par DSL</div>
+                  ) : demande.date_validation_prestataire ? (
                      <>
-                        <div className="mt-3 flex items-center gap-1 text-indigo-600 text-xs font-bold"><CheckCircle className="w-4 h-4" /> Validé le {demande.date_validation_prestataire}</div>
+                        <div className="mt-3 flex items-center gap-1 text-indigo-600 text-xs font-bold"><CheckCircle className="w-4 h-4" /> Approuvé le {demande.date_validation_prestataire}</div>
                         {demande.OT_ODS && <p className="text-xs text-slate-500 mt-1">OT/ODS: {demande.OT_ODS}</p>}
                         {demande.Fournisseur && <p className="text-xs text-slate-500">Fournisseur: {demande.Fournisseur}</p>}
                      </>
@@ -237,44 +457,62 @@ const DemandeView = ({ user }) => {
 
             {/* ACTIONS CONDITIONNELLES */}
             <div className="flex flex-col gap-4">
-               {user.role === 'chef departement' && demande.Status === 'En Attente' && user.struc_code !== 'DSL' && (
+               
+               {/* Chef Département Demandeur: Valider ou Rejeter (quand En Attente) */}
+               {user.role === 'chef departement' && demande.Status === 'En Attente' && user.structure !== 'DSL' && (
                   <div className="grid grid-cols-2 gap-4">
                      <button onClick={handleValider} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl shadow transition-all flex items-center justify-center gap-2 text-lg">
-                        <Check className="w-6 h-6" /> Approuver
+                        <Check className="w-6 h-6" /> Valider
                      </button>
-                     <button onClick={handleRefuser} className="w-full bg-red-100 hover:bg-red-200 text-red-700 font-bold py-4 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 text-lg border border-red-200">
-                        <XCircle className="w-6 h-6" /> Refuser
+                     <button onClick={openRejetModal} className="w-full bg-red-100 hover:bg-red-200 text-red-700 font-bold py-4 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 text-lg border border-red-200">
+                        <XCircle className="w-6 h-6" /> Rejeter
                      </button>
                   </div>
                )}
 
+               {/* Chef DSL: Approuver ou Rejeter (quand Validé) */}
                {user.structure === 'DSL' && user.role === 'chef departement' && demande.Status === 'Validé' && (
                   <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-6 shadow-sm">
-                     <h3 className="text-indigo-900 font-bold mb-4">Finalisation DSL</h3>
+                     <h3 className="text-indigo-900 font-bold mb-4">Approbation DSL</h3>
                      <div className="grid grid-cols-2 gap-4 mb-5">
                         <div>
-                           <label className="block text-xs font-semibold text-indigo-800 mb-1">OT ou ODS N° (Doit être Unique)</label>
-                           <input type="text" value={dslForm.ot_ods} onChange={(e) => setDslForm({ ...dslForm, ot_ods: e.target.value })} className="w-full px-3 py-2 rounded border border-indigo-200 outline-none focus:ring-2 focus:ring-indigo-500" />
+                           <label className="block text-xs font-semibold text-indigo-800 mb-1">OT ou ODS N° <span className="text-red-500">*</span></label>
+                           <input type="text" placeholder="Obligatoire" value={dslForm.ot_ods} onChange={(e) => setDslForm({ ...dslForm, ot_ods: e.target.value })} className="w-full px-3 py-2 rounded border border-indigo-200 outline-none focus:ring-2 focus:ring-indigo-500" />
                         </div>
                         <div>
-                           <label className="block text-xs font-semibold text-indigo-800 mb-1">Fournisseur</label>
-                           <input type="text" value={dslForm.fournisseur} onChange={(e) => setDslForm({ ...dslForm, fournisseur: e.target.value })} className="w-full px-3 py-2 rounded border border-indigo-200 outline-none focus:ring-2 focus:ring-indigo-500" />
+                           <label className="block text-xs font-semibold text-indigo-800 mb-1">Fournisseur <span className="text-red-500">*</span></label>
+                           <input type="text" placeholder="Obligatoire" value={dslForm.fournisseur} onChange={(e) => setDslForm({ ...dslForm, fournisseur: e.target.value })} className="w-full px-3 py-2 rounded border border-indigo-200 outline-none focus:ring-2 focus:ring-indigo-500" />
                         </div>
                      </div>
                      <div className="grid grid-cols-3 gap-4">
                         <button onClick={handleDslValider} className="col-span-2 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg shadow transition-all flex items-center justify-center gap-2">
-                           <CheckCircle className="w-5 h-5" /> Enregistrer & Approuver
+                           <CheckCircle className="w-5 h-5" /> Approuver
                         </button>
-                        <button onClick={handleRefuser} className="col-span-1 w-full bg-red-100 hover:bg-red-200 text-red-700 font-bold py-3 rounded-lg shadow-sm transition-all flex items-center justify-center gap-2">
-                           Refuser
+                        <button onClick={openRejetModal} className="col-span-1 w-full bg-red-100 hover:bg-red-200 text-red-700 font-bold py-3 rounded-lg shadow-sm transition-all flex items-center justify-center gap-2">
+                           Rejeter
                         </button>
                      </div>
                   </div>
                )}
 
-               {(user.matricule === demande.utilisateur || user.role === 'chef departement') && demande.Status === 'Approuvé par DSL' && (
+               {/* Chef DSL: Passer En Cours (quand Approuvé) */}
+               {user.structure === 'DSL' && user.role === 'chef departement' && demande.Status === 'Approuvé' && (
+                  <button onClick={handleEnCours} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow transition-all flex items-center justify-center gap-2 text-lg">
+                     <Play className="w-6 h-6" /> Démarrer — Passer En Cours
+                  </button>
+               )}
+
+               {/* Chef DSL: Clôturer (quand En Cours) */}
+               {user.structure === 'DSL' && user.role === 'chef departement' && demande.Status === 'En Cours' && (
                   <button onClick={handleCloturer} className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-4 rounded-xl shadow transition-all flex items-center justify-center gap-2 text-lg">
-                     Clôturer définitivement la demande
+                     <CheckCircle className="w-6 h-6" /> Clôturer définitivement la demande
+                  </button>
+               )}
+
+               {/* Annuler: visible selon les droits */}
+               {canAnnuler() && (
+                  <button onClick={openAnnulerModal} className="w-full bg-orange-50 hover:bg-orange-100 text-orange-700 font-bold py-3 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 border border-orange-200">
+                     <Ban className="w-5 h-5" /> Annuler la demande
                   </button>
                )}
             </div>

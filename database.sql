@@ -165,6 +165,9 @@ CREATE TABLE [Demandes] (
         [date_validation_prestataire] DATETIME,
         [OT_ODS] NVARCHAR(255),
         [Fournisseur] NVARCHAR(255),
+        [motif_rejet] NVARCHAR(MAX),
+        [ref_ods_client] NVARCHAR(255),
+        [lieu_prestation] NVARCHAR(255),
 
         CONSTRAINT FK_Demandes_Affaire FOREIGN KEY (Code_Affaire) 
         REFERENCES affaires(Code_Affaire)
@@ -198,6 +201,9 @@ SELECT
     d.date_validation_prestataire,
     d.OT_ODS,
     d.Fournisseur,
+    d.motif_rejet,
+    d.ref_ods_client,
+    d.lieu_prestation,
     a.CLIENT,
     s.COD_STRUCT_H AS Code_Structure,
     s.INITIAL AS Structure_Initial,

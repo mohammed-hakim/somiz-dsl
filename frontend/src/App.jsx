@@ -1,45 +1,82 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import { Bell } from 'lucide-react';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import DemandeForm from './pages/DemandeForm';
 import DemandeView from './pages/DemandeView';
 
-function App() {
-  const [user, setUser] = useState(null);
+const Navbar = ({ user, setUser }) => {
+  const [notifCount, setNotifCount] = useState(0);
+  const navigate = useNavigate();
 
   useEffect(() => {
+    const fetchCount = async () => {
+      try {
+        const { data } = await axios.get(`http://localhost:5000/api/notifications?matricule=${user.matricule}&role=${user.role}&structure=${user.structure}`);
+        setNotifCount(data.length);
+      } catch (e) { /* silent */ }
+    };
+    fetchCount();
+    const interval = setInterval(fetchCount, 60000);
+    return () => clearInterval(interval);
+  }, [user]);
+
+  return (
+    <header className="bg-white shadow-sm border-b border-slate-200 print:hidden">
+      <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+        <h1
+          onClick={() => navigate('/')}
+          className="text-xl font-bold text-blue-600 tracking-tight cursor-pointer hover:text-blue-700 transition"
+        >
+          SOMIZ Logistics
+        </h1>
+        <div className="flex items-center gap-4">
+          {/* Notification Bell */}
+          {user.structure === 'DSL' && (
+            <button
+              onClick={() => navigate('/')}
+              className="relative p-2 rounded-lg hover:bg-slate-100 transition group"
+              title="Notifications - Prestations à venir"
+            >
+              <Bell className="w-5 h-5 text-slate-500 group-hover:text-blue-600 transition" />
+              {notifCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[20px] h-5 flex items-center justify-center text-[11px] font-bold text-white bg-red-500 rounded-full px-1 animate-pulse shadow-lg shadow-red-500/40">
+                  {notifCount}
+                </span>
+              )}
+            </button>
+          )}
+
+          <span className="text-sm font-medium text-slate-600">
+            {user.nom} {user.prenom} ({user.role})
+          </span>
+          <button 
+            onClick={() => { localStorage.removeItem('user'); setUser(null); window.location.href = '/login'; }}
+            className="text-sm text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-md transition"
+          >
+            Déconnexion
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+};
+
+function App() {
+  const [user, setUser] = useState(() => {
     const saved = localStorage.getItem('user');
-    if (saved) {
-      setUser(JSON.parse(saved));
-    }
-  }, []);
+    return saved ? JSON.parse(saved) : null;
+  });
 
   return (
     <BrowserRouter>
       <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
-        {/* Simple navbar if user exists */}
-        {user && (
-          <header className="bg-white shadow-sm border-b border-slate-200 print:hidden">
-            <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-              <h1 className="text-xl font-bold text-blue-600 tracking-tight">SOMIZ Logistics</h1>
-              <div className="flex items-center gap-4">
-                <span className="text-sm font-medium text-slate-600">
-                  {user.nom} {user.prenom} ({user.role})
-                </span>
-                <button 
-                  onClick={() => { localStorage.removeItem('user'); setUser(null); window.location.href = '/login'; }}
-                  className="text-sm text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-md transition"
-                >
-                  Déconnexion
-                </button>
-              </div>
-            </div>
-          </header>
-        )}
+        {user && <Navbar user={user} setUser={setUser} />}
         <main>
           <Routes>
-             <Route path="/login" element={<Login setUser={setUser} />} />
+             <Route path="/login" element={!user ? <Login setUser={setUser} /> : <Navigate to="/" />} />
              <Route path="/" element={user ? <Dashboard user={user} /> : <Navigate to="/login" />} />
              <Route path="/demande/new" element={user ? <DemandeForm user={user} /> : <Navigate to="/login" />} />
              <Route path="/demande/:num_demande" element={user ? <DemandeView user={user} /> : <Navigate to="/login" />} />

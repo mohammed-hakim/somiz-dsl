@@ -5,9 +5,11 @@ import { Search, Send, Loader2 } from 'lucide-react';
 
 const DemandeForm = ({ user }) => {
   const navigate = useNavigate();
-  
+
   const [formData, setFormData] = useState({
     code_affaire: '',
+    ref_ods_client: '',
+    lieu_prestation: '',
     date_debut: '',
     date_fin: '',
     description: '',
@@ -33,7 +35,7 @@ const DemandeForm = ({ user }) => {
     }, 300);
     return () => clearTimeout(timer);
   }, [engineSearch]);
-  
+
   useEffect(() => {
     if (user.role === 'secretaire') {
       axios.get(`http://localhost:5000/api/employees?structure=${user.structure}`).then(res => setEmployees(res.data));
@@ -97,6 +99,12 @@ const DemandeForm = ({ user }) => {
     }
   };
 
+  const getMinDate = () => {
+    const date = new Date();
+    date.setDate(date.getDate() + 3); // add 3 days
+    return date.toISOString().split('T')[0];
+  };
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       <div className="mb-8 flex justify-between items-center">
@@ -108,7 +116,7 @@ const DemandeForm = ({ user }) => {
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 space-y-8">
-        
+
         {/* Section 1: Imputation */}
         <div className="space-y-6">
           <h3 className="text-lg font-semibold text-blue-800 border-b pb-2">1. Imputation</h3>
@@ -116,7 +124,7 @@ const DemandeForm = ({ user }) => {
             <div className="relative">
               <label className="block text-sm font-semibold text-slate-700 mb-2">Code d'imputation (Affaire N°)</label>
               <div className="relative">
-                <input 
+                <input
                   autoFocus
                   type="text" name="code_affaire" value={formData.code_affaire} onChange={handleChange}
                   className="w-full px-4 py-3 pl-10 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
@@ -131,7 +139,7 @@ const DemandeForm = ({ user }) => {
 
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">Client (Autofill via affaire)</label>
-              <input 
+              <input
                 type="text" value={affaireInfo.client} readOnly
                 className="w-full px-4 py-3 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 outline-none"
                 placeholder="Client..."
@@ -140,30 +148,51 @@ const DemandeForm = ({ user }) => {
 
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">Structure (Autofill via affaire)</label>
-              <input 
+              <input
                 type="text" value={affaireInfo.intitule ? `${affaireInfo.code_structure} - ${affaireInfo.intitule}` : affaireInfo.code_structure} readOnly
                 className="w-full px-4 py-3 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 outline-none"
               />
             </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Réf. ODS Client</label>
+              <input
+                type="text" name="ref_ods_client" value={formData.ref_ods_client} onChange={handleChange} required
+                className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition"
+                placeholder="Ex: ODS-2026-X..."
+              />
+            </div>
+
+
           </div>
         </div>
 
-        {/* Section 2: Durée */}
+        {/* Section 2: Lieu et Durée */}
         <div className="space-y-6">
-          <h3 className="text-lg font-semibold text-blue-800 border-b pb-2">2. Durée de la Prestation</h3>
+          <h3 className="text-lg font-semibold text-blue-800 border-b pb-2">2.Lieu et Durée de la Prestation</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">Date début</label>
-              <input 
+              <input
                 type="date" name="date_debut" value={formData.date_debut} onChange={handleChange} required
+                min={getMinDate()}
                 className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">Date Fin</label>
-              <input 
+              <input
                 type="date" name="date_fin" value={formData.date_fin} onChange={handleChange}
+                min={formData.date_debut || getMinDate()}
                 className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Lieu de Prestation</label>
+              <input
+                type="text" name="lieu_prestation" value={formData.lieu_prestation} onChange={handleChange} required
+                className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition"
+                placeholder=""
               />
             </div>
           </div>
@@ -174,7 +203,7 @@ const DemandeForm = ({ user }) => {
           <h3 className="text-lg font-semibold text-blue-800 border-b pb-2">3. Description et Engins</h3>
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-2">Description de la prestation</label>
-            <textarea 
+            <textarea
               name="description" value={formData.description} onChange={handleChange} required
               rows={3} className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
             />
@@ -182,20 +211,20 @@ const DemandeForm = ({ user }) => {
 
           <div>
             <div className="flex justify-between items-end mb-3">
-               <label className="block text-sm font-semibold text-slate-700">Sélectionner les moyens (Engins)</label>
-               <input 
-                 type="text" 
-                 placeholder="Rechercher (ex: Camion, Grue...)" 
-                 value={engineSearch}
-                 onChange={(e) => setEngineSearch(e.target.value)}
-                 className="px-3 py-1.5 text-sm rounded-md border border-slate-300 focus:border-blue-500 outline-none"
-               />
+              <label className="block text-sm font-semibold text-slate-700">Sélectionner les moyens (Engins)</label>
+              <input
+                type="text"
+                placeholder="Rechercher (ex: Camion, Grue...)"
+                value={engineSearch}
+                onChange={(e) => setEngineSearch(e.target.value)}
+                className="px-3 py-1.5 text-sm rounded-md border border-slate-300 focus:border-blue-500 outline-none"
+              />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto p-4 border border-slate-200 shadow-inner rounded-xl bg-slate-50">
               {equipements.length === 0 ? <p className="text-sm text-slate-400">Aucun résultat</p> : equipements.map(eq => (
                 <label key={eq.code} className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-blue-400 transition">
-                  <input 
-                    type="checkbox" 
+                  <input
+                    type="checkbox"
                     className="w-4 h-4 text-blue-600 rounded"
                     checked={formData.engins.includes(eq.code)}
                     onChange={() => handleEnginToggle(eq.code)}
@@ -205,7 +234,7 @@ const DemandeForm = ({ user }) => {
               ))}
             </div>
             <div className="mt-2 text-xs text-slate-500">
-               {formData.engins.length} engin(s) sélectionné(s)
+              {formData.engins.length} engin(s) sélectionné(s)
             </div>
           </div>
         </div>
@@ -213,38 +242,38 @@ const DemandeForm = ({ user }) => {
         {/* Section 4: Observations */}
         <div className="space-y-6">
           <h3 className="text-lg font-semibold text-blue-800 border-b pb-2">4. Observations</h3>
-          <textarea 
-              name="observation" value={formData.observation} onChange={handleChange}
-              rows={2} className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
-            />
+          <textarea
+            name="observation" value={formData.observation} onChange={handleChange}
+            rows={2} className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
+          />
         </div>
 
         {user.role === 'secretaire' && (
           <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
-             <label className="block text-sm font-semibold text-blue-900 mb-2">Sélectionner le demandeur (Employé du même service)</label>
-             <select 
-               name="creator_matricule" 
-               value={formData.creator_matricule} 
-               onChange={handleChange}
-               className="w-full px-4 py-3 rounded-lg border border-blue-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-             >
-                <option value={user.matricule}>Sélectionner un employé...</option>
-                {employees.filter(e => e.matricule !== user.matricule).map(emp => (
-                  <option key={emp.matricule} value={emp.matricule}>{emp.nom} {emp.prenom} - {emp.matricule}</option>
-                ))}
-             </select>
+            <label className="block text-sm font-semibold text-blue-900 mb-2">Sélectionner le demandeur (Employé du même service)</label>
+            <select
+              name="creator_matricule"
+              value={formData.creator_matricule}
+              onChange={handleChange}
+              className="w-full px-4 py-3 rounded-lg border border-blue-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+            >
+              <option value={user.matricule}>Sélectionner un employé...</option>
+              {employees.filter(e => e.matricule !== user.matricule).map(emp => (
+                <option key={emp.matricule} value={emp.matricule}>{emp.nom} {emp.prenom} - {emp.matricule}</option>
+              ))}
+            </select>
           </div>
         )}
 
         {submitError && (
           <div className="p-4 bg-red-50 text-red-700 border border-red-200 rounded-lg font-medium">
-             {submitError}
+            {submitError}
           </div>
         )}
 
-        <button 
+        <button
           disabled={isSubmitting || loadingAffaire}
-          type="submit" 
+          type="submit"
           className="w-full flex justify-center items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl shadow-lg transition-all transform hover:-translate-y-0.5"
         >
           {isSubmitting ? <Loader2 className="w-6 h-6 animate-spin" /> : <><Send className="w-5 h-5" /> Soumettre la demande</>}
