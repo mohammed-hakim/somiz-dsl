@@ -10,18 +10,34 @@ CREATE TABLE [RH] (
     [password] NVARCHAR(255) DEFAULT '123456',
     [STRUC] NVARCHAR(20),
     [role] NVARCHAR(50) DEFAULT 'agent',
-    CONSTRAINT CK_RH_Role CHECK ([role] IN ('agent', 'secretaire', 'chef departement'))
+    CONSTRAINT CK_RH_Role CHECK ([role] IN ('agent', 'secretaire', 'chef departement','chef service'))
 );
 GO
 
 
 
 INSERT INTO [RH] ([nom], [prenom], [matricule], [NUM_CONT], [structure],[role])
-VALUES  (N'karim', N'yacine', N'010874', N'021669', N'ISI','agent'),
-        (N'mansor', N'omar', N'798072', N'715172', N'ISI','secretaire'),
-        (N'salem', N'amina', N'068184', N'220727', N'ISI','chef departement'),
+VALUES  (N'karim', N'isi', N'010874', N'021669', N'ISI','agent'),
+        (N'mansor', N'isi', N'798072', N'715172', N'ISI','secretaire'),
+        (N'zakaria', N'isi', N'048010', N'031691', N'DSL','chef service');
+        (N'salem', N'isi', N'068184', N'220727', N'ISI','chef departement'),
+
         (N'chehhat', N'dsl', N'010873', N'021663', N'DSL','agent'),
-        (N'anes', N'dsl', N'010870', N'021660', N'DSL','chef departement');
+        (N'jamal', N'dsl', N'030870', N'031860', N'DSL','secretaire'),
+        (N'ahmed', N'dsl', N'048009', N'031692', N'DSL','chef service'),
+        (N'anes', N'dsl', N'010870', N'021660', N'DSL','chef departement'),
+
+        (N'tayeb', N'cpa', N'010871', N'021661', N'CPA','agent'),
+        (N'amine', N'cpa', N'039009', N'031693', N'CPA','secretaire'),
+        (N'amine', N'cpa', N'039009', N'031694', N'CPA','chef service'),
+        (N'fateh', N'cpa', N'010872', N'021662', N'CPA','chef departement'),
+
+        (N'malek', N'MVE', N'010873', N'021663', N'MVE','agent'),
+        (N'ryad', N'MVE', N'457890', N'451536', N'MVE','secretaire'),
+        (N'baraa', N'MVE', N'457891', N'451537', N'MVE','chef service'),
+        (N'malek', N'MVE', N'010874', N'021664', N'MVE','chef departement');
+
+
 GO
 
 
