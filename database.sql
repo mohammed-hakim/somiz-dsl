@@ -161,13 +161,17 @@ CREATE TABLE [Demandes] (
         [Observation] VARCHAR(MAX),
         [utilisateur] NVARCHAR(20),
         [date_validation_demandeur] DATETIME,
+        [validateur_demandeur] NVARCHAR(20),
         [Status] NVARCHAR(50) DEFAULT 'En Attente',
         [date_validation_prestataire] DATETIME,
+        [validateur_dsl] NVARCHAR(20),
         [OT_ODS] NVARCHAR(255),
         [Fournisseur] NVARCHAR(255),
         [motif_rejet] NVARCHAR(MAX),
         [ref_ods_client] NVARCHAR(255),
         [lieu_prestation] NVARCHAR(255),
+        [demandeur_structure] NVARCHAR(50),
+        [date_cpa] DATE NULL,
 
         CONSTRAINT FK_Demandes_Affaire FOREIGN KEY (Code_Affaire) 
         REFERENCES affaires(Code_Affaire)
@@ -197,13 +201,16 @@ SELECT
     d.Observation,
     d.utilisateur,
     d.date_validation_demandeur,
+    d.validateur_demandeur,
     d.Status,
     d.date_validation_prestataire,
+    d.validateur_dsl,
     d.OT_ODS,
     d.Fournisseur,
     d.motif_rejet,
     d.ref_ods_client,
     d.lieu_prestation,
+    d.demandeur_structure,
     a.CLIENT,
     s.COD_STRUCT_H AS Code_Structure,
     s.INITIAL AS Structure_Initial,
@@ -229,4 +236,145 @@ CREATE TABLE [Journal] (
         [DATE_EXECUTABLE]  DATETIME,
         [EXERCICE]         NVARCHAR(10)
 );
+GO
+
+-- ============================================
+-- MAINTENANCE TABLES (from migration_maintenance_v2.sql)
+-- ============================================
+
+-- Table: MaintenanceTypes
+CREATE TABLE MaintenanceTypes (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    code NVARCHAR(20) UNIQUE NOT NULL,
+    libelle NVARCHAR(100) NOT NULL,
+    categorie NVARCHAR(20) NOT NULL CHECK (categorie IN ('Preventif', 'Curatif')),
+    description NVARCHAR(255)
+);
+GO
+
+INSERT INTO MaintenanceTypes (code, libelle, categorie, description) VALUES
+('VIDANGE', 'Vidange', 'Preventif', 'Vidange et changement des filtres'),
+('REVISION_10K', 'Revision 10,000 km', 'Preventif', 'Revision periodique a 10,000 km'),
+('REVISION_20K', 'Revision 20,000 km', 'Preventif', 'Revision complete a 20,000 km'),
+('REVISION_30K', 'Revision 30,000 km', 'Preventif', 'Revision complete a 30,000 km'),
+('PNEUS', 'Changement Pneus', 'Preventif', 'Remplacement des pneus uses'),
+('FREINS', 'Maintenance Freins', 'Preventif', 'Verification et remplacement des freins'),
+('REPARATION_MECA', 'Reparation Mecanique', 'Curatif', 'Reparation suite a panne mecanique'),
+('REPARATION_ELEC', 'Reparation Electrique', 'Curatif', 'Reparation probleme electrique'),
+('CARROSSERIE', 'Reparation Carrosserie', 'Curatif', 'Reparation carrosserie suite a accident'),
+('DEPANNAGE', 'Depannage', 'Curatif', 'Intervention urgente sur site');
+GO
+
+-- Table: MaintenanceRules
+CREATE TABLE MaintenanceRules (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    code_prestation NVARCHAR(20) NOT NULL,
+    type_maintenance NVARCHAR(20) NOT NULL,
+    interval_km INT NULL,
+    interval_days INT NULL,
+    alert_before_km INT NULL,
+    alert_before_days INT NULL,
+    is_active BIT DEFAULT 1,
+    created_at DATETIME DEFAULT GETDATE(),
+    CONSTRAINT FK_Rules_Equipement FOREIGN KEY (code_prestation) REFERENCES ListeEquipement([Code Prestation]),
+    CONSTRAINT FK_Rules_Type FOREIGN KEY (type_maintenance) REFERENCES MaintenanceTypes(code),
+    CONSTRAINT UQ_Rules_Equipement_Type UNIQUE (code_prestation, type_maintenance)
+);
+GO
+
+-- Table: MaintenanceRequests
+CREATE TABLE MaintenanceRequests (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    code_prestation NVARCHAR(20) NOT NULL,
+    type_maintenance NVARCHAR(20) NOT NULL,
+    date_debut DATE NOT NULL,
+    date_fin DATE NOT NULL,
+    kilometrage_actuel INT NULL,
+    description NVARCHAR(MAX),
+    status NVARCHAR(20) DEFAULT 'EN_ATTENTE' CHECK (status IN ('EN_ATTENTE', 'VALIDE', 'REJETE', 'EN_COURS', 'TERMINE')),
+    demandeur_matricule NVARCHAR(20) NOT NULL,
+    demandeur_structure NVARCHAR(50) NOT NULL,
+    validateur_matricule NVARCHAR(20) NULL,
+    date_demande DATETIME DEFAULT GETDATE(),
+    date_validation DATETIME NULL,
+    date_debut_reelle DATETIME NULL,
+    date_fin_reelle DATETIME NULL,
+    motif_rejet NVARCHAR(MAX) NULL,
+    CONSTRAINT FK_Maintenance_Type FOREIGN KEY (type_maintenance) REFERENCES MaintenanceTypes(code),
+    CONSTRAINT FK_Maintenance_Equipement FOREIGN KEY (code_prestation) REFERENCES ListeEquipement([Code Prestation])
+);
+GO
+
+-- Table: EquipmentMobilization
+CREATE TABLE EquipmentMobilization (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    code_prestation NVARCHAR(20) NOT NULL,
+    num_demande NVARCHAR(100) NOT NULL,
+    type_operation NVARCHAR(20) NOT NULL CHECK (type_operation IN ('MOBILISATION', 'DEMOBILISATION')),
+    date_operation DATETIME DEFAULT GETDATE(),
+    matricule_operateur NVARCHAR(20) NOT NULL,
+    structure_operateur NVARCHAR(50) NOT NULL,
+    observation NVARCHAR(MAX),
+    CONSTRAINT FK_Mobilization_Demande FOREIGN KEY (num_demande) REFERENCES Demandes(num_demande),
+    CONSTRAINT FK_Mobilization_Equipement FOREIGN KEY (code_prestation) REFERENCES ListeEquipement([Code Prestation])
+);
+GO
+
+-- Table: EquipmentKilometrage
+CREATE TABLE EquipmentKilometrage (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    code_prestation NVARCHAR(20) NOT NULL,
+    date_enregistrement DATETIME DEFAULT GETDATE(),
+    kilometrage INT NOT NULL CHECK (kilometrage >= 0),
+    source NVARCHAR(50) NOT NULL CHECK (source IN ('MOBILISATION', 'DEMOBILISATION', 'MAINTENANCE', 'MANUEL', 'RULE_CHECK')),
+    reference_id INT NULL,
+    matricule_operateur NVARCHAR(20) NOT NULL,
+    observation NVARCHAR(255),
+    CONSTRAINT FK_Kilometrage_Equipement FOREIGN KEY (code_prestation) REFERENCES ListeEquipement([Code Prestation])
+);
+GO
+
+-- Table: EquipmentMaintenanceLog
+CREATE TABLE EquipmentMaintenanceLog (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    code_prestation NVARCHAR(20) NOT NULL,
+    type_maintenance NVARCHAR(20) NOT NULL,
+    last_done_date DATE NOT NULL,
+    last_done_km INT NOT NULL,
+    maintenance_request_id INT NULL,
+    CONSTRAINT FK_Log_Equipement FOREIGN KEY (code_prestation) REFERENCES ListeEquipement([Code Prestation]),
+    CONSTRAINT FK_Log_Type FOREIGN KEY (type_maintenance) REFERENCES MaintenanceTypes(code),
+    CONSTRAINT FK_Log_Request FOREIGN KEY (maintenance_request_id) REFERENCES MaintenanceRequests(id) ON DELETE SET NULL,
+    CONSTRAINT UQ_Log_Equipement_Type UNIQUE (code_prestation, type_maintenance)
+);
+GO
+
+-- Table: MaintenanceEquipment (from migration_maintenance_v3.sql)
+CREATE TABLE MaintenanceEquipment (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    maintenance_request_id INT NOT NULL,
+    code_prestation NVARCHAR(20) NOT NULL,
+    kilometrage_actuel INT NULL,
+    CONSTRAINT FK_MaintenanceEquip_Request FOREIGN KEY (maintenance_request_id) 
+        REFERENCES MaintenanceRequests(id) ON DELETE CASCADE,
+    CONSTRAINT FK_MaintenanceEquip_Equipement FOREIGN KEY (code_prestation) 
+        REFERENCES ListeEquipement([Code Prestation])
+);
+GO
+
+-- Indexes for performance
+SET QUOTED_IDENTIFIER ON;
+GO
+
+CREATE INDEX IX_MaintenanceRequests_Status ON MaintenanceRequests(status);
+CREATE INDEX IX_MaintenanceRequests_Dates ON MaintenanceRequests(date_debut, date_fin);
+CREATE INDEX IX_MaintenanceRequests_Equipement ON MaintenanceRequests(code_prestation);
+CREATE INDEX IX_MaintenanceRules_Active ON MaintenanceRules(is_active) WHERE is_active = 1;
+CREATE INDEX IX_Kilometrage_Equipement ON EquipmentKilometrage(code_prestation, date_enregistrement DESC);
+CREATE INDEX IX_Kilometrage_Source ON EquipmentKilometrage(source, reference_id);
+CREATE INDEX IX_MaintenanceEquipment_Request ON MaintenanceEquipment(maintenance_request_id);
+CREATE INDEX IX_MaintenanceEquipment_Equipement ON MaintenanceEquipment(code_prestation);
+GO
+
+PRINT 'Database schema created successfully!';
 GO

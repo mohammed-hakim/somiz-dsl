@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Bell } from 'lucide-react';
+import { Bell, Wrench } from 'lucide-react';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import DemandeForm from './pages/DemandeForm';
 import DemandeView from './pages/DemandeView';
+import MaintenanceDSL from './pages/MaintenanceDSL';
+import MaintenanceMVE from './pages/MaintenanceMVE';
 
 const Navbar = ({ user, setUser }) => {
   const [notifCount, setNotifCount] = useState(0);
@@ -16,7 +18,7 @@ const Navbar = ({ user, setUser }) => {
       try {
         const { data } = await axios.get(`http://localhost:5000/api/notifications?matricule=${user.matricule}&role=${user.role}&structure=${user.structure}`);
         setNotifCount(data.length);
-      } catch (e) { /* silent */ }
+      } catch { /* silent */ }
     };
     fetchCount();
     const interval = setInterval(fetchCount, 60000);
@@ -33,6 +35,17 @@ const Navbar = ({ user, setUser }) => {
           SOMIZ Logistics
         </h1>
         <div className="flex items-center gap-4">
+          {/* Maintenance Link */}
+          {(user.structure === 'DSL' || user.structure === 'MVE') && (
+            <button
+              onClick={() => navigate('/maintenance')}
+              className="p-2 rounded-lg hover:bg-slate-100 transition group"
+              title="Maintenance des équipements"
+            >
+              <Wrench className="w-5 h-5 text-slate-500 group-hover:text-blue-600 transition" />
+            </button>
+          )}
+
           {/* Notification Bell */}
           {user.structure === 'DSL' && (
             <button
@@ -80,6 +93,7 @@ function App() {
              <Route path="/" element={user ? <Dashboard user={user} /> : <Navigate to="/login" />} />
              <Route path="/demande/new" element={user ? <DemandeForm user={user} /> : <Navigate to="/login" />} />
              <Route path="/demande/:num_demande" element={user ? <DemandeView user={user} /> : <Navigate to="/login" />} />
+             <Route path="/maintenance" element={user ? (user.structure === 'MVE' ? <MaintenanceMVE user={user} /> : <MaintenanceDSL user={user} />) : <Navigate to="/login" />} />
              <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </main>

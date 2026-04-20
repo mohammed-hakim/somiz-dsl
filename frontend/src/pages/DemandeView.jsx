@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Check, CheckCircle, FileText, Anchor, History, XCircle, Printer, ScrollText, AlertTriangle, Play, X, Ban } from 'lucide-react';
+import { Check, CheckCircle, FileText, Anchor, History, XCircle, Printer, ScrollText, AlertTriangle, Play, X, Ban, Edit, Search } from 'lucide-react';
 
 const getStatusStyle = (status) => {
    switch (status) {
@@ -74,10 +74,20 @@ const DemandeView = ({ user }) => {
    const [journaux, setJournaux] = useState([]);
 
    // DSL Local form state
-   const [dslForm, setDslForm] = useState({ ot_ods: '', fournisseur: '' });
+   const [dslForm, setDslForm] = useState({ ot: '' });
+   const [enginsAvailability, setEnginsAvailability] = useState(null);
+   const [assignedEngins, setAssignedEngins] = useState([]);
+   const [cpaForm, setCpaForm] = useState({ ods: '', date_cpa: '', fournisseur: '' });
 
    // Modal state
    const [modal, setModal] = useState({ open: false, title: '', action: null });
+
+   // Edit equipment modal state
+   const [editEquipModal, setEditEquipModal] = useState(false);
+   const [equipements, setEquipements] = useState([]);
+   const [engineSearch, setEngineSearch] = useState('');
+   const [selectedEngins, setSelectedEngins] = useState([]);
+   const [editEquipError, setEditEquipError] = useState('');
 
    const fetchJournaux = async () => {
       try {
@@ -93,6 +103,16 @@ const DemandeView = ({ user }) => {
          const { data } = await axios.get(`http://localhost:5000/api/demandes/${encodeURIComponent(num_demande)}`);
          setDemande(data);
          document.title = data.num_demande || 'Demande';
+
+         if (user.structure === 'DSL' && data.Status === 'Validé') {
+            axios.get(`http://localhost:5000/api/demandes/${encodeURIComponent(num_demande)}/engins_availability`)
+               .then(res => {
+                  setEnginsAvailability(res.data);
+                  const available = Object.keys(res.data).filter(k => res.data[k]);
+                  setAssignedEngins(available);
+               }).catch(e => console.error(e));
+         }
+
          fetchJournaux();
       } catch (err) {
          console.error(err);
@@ -104,6 +124,43 @@ const DemandeView = ({ user }) => {
    useEffect(() => {
       fetchDemande();
    }, [num_demande]);
+
+   // Fetch equipements for edit modal
+   useEffect(() => {
+      if (editEquipModal && engineSearch.length >= 2) {
+         axios.get(`http://localhost:5000/api/equipements?search=${engineSearch}`)
+            .then(res => setEquipements(res.data))
+            .catch(e => console.error(e));
+      }
+   }, [editEquipModal, engineSearch]);
+
+   const openEditEquipModal = () => {
+      setSelectedEngins(demande.engins_detail?.map(e => e.code) || []);
+      setEngineSearch('');
+      setEquipements([]);
+      setEditEquipError('');
+      setEditEquipModal(true);
+   };
+
+   const handleUpdateEngins = async () => {
+      try {
+         setEditEquipError('');
+         await axios.put(`http://localhost:5000/api/demandes/${encodeURIComponent(num_demande)}/engins`, {
+            engins: selectedEngins,
+            matricule: user.matricule
+         });
+         setEditEquipModal(false);
+         fetchDemande();
+      } catch (err) {
+         setEditEquipError(err.response?.data?.error || 'Erreur lors de la mise à jour');
+      }
+   };
+
+   const toggleEngin = (code) => {
+      setSelectedEngins(prev => 
+         prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]
+      );
+   };
 
    const handleValider = async () => {
       try {
@@ -129,17 +186,31 @@ const DemandeView = ({ user }) => {
       });
    };
 
-   const handleDslValider = async () => {
+   const handleDslValider = async (action = 'approuver') => {
       try {
          setErrorStatus('');
          await axios.post(`http://localhost:5000/api/demandes/${encodeURIComponent(num_demande)}/dsl_validate`, {
             matricule: user.matricule,
-            ot_ods: dslForm.ot_ods,
-            fournisseur: dslForm.fournisseur
+            action,
+            ot: action === 'approuver' ? dslForm.ot : '',
+            assigned_engins: action === 'approuver' ? assignedEngins : []
          });
          fetchDemande();
       } catch (err) {
          setErrorStatus(err.response?.data?.error || 'Erreur lors de l\'approbation DSL.');
+      }
+   };
+
+   const handleCpaValider = async () => {
+      try {
+         setErrorStatus('');
+         await axios.post(`http://localhost:5000/api/demandes/${encodeURIComponent(num_demande)}/cpa_validate`, {
+            matricule: user.matricule,
+            ...cpaForm
+         });
+         fetchDemande();
+      } catch (err) {
+         setErrorStatus(err.response?.data?.error || 'Erreur lors de la validation CPA.');
       }
    };
 
@@ -198,9 +269,11 @@ const DemandeView = ({ user }) => {
       // Agent can cancel their own if still En Attente
       if (user.role === 'agent' && demande.utilisateur === user.matricule && s === 'En Attente') return true;
       // Chef departement (demandeur) can cancel if En Attente or Validé
-      if (user.role === 'chef departement' && user.structure !== 'DSL' && ['En Attente', 'Validé'].includes(s)) return true;
+      if (user.role === 'chef departement' && ['En Attente', 'Validé'].includes(s)) return true;
       // Chef DSL can cancel at any active stage
       if (user.role === 'chef departement' && user.structure === 'DSL') return true;
+      // CPA can cancel Sous Traitance
+      if (user.structure === 'CPA' && ['secretaire', 'chef service'].includes(user.role) && s === 'Sous Traitance') return true;
       return false;
    };
 
@@ -278,22 +351,54 @@ const DemandeView = ({ user }) => {
                <div className="print:border print:border-black print:p-3">
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 print:text-black print:border-b print:border-black print:pb-1">3. Description de la Prestation</h4>
                   <div className="p-4 bg-slate-50 rounded-lg text-sm text-slate-700 whitespace-pre-wrap print:bg-white print:p-0 print:text-black font-medium">
-                     <p className="mb-2"><strong>Lieu:</strong> {demande.lieu_prestation}</p>
-                     {demande.description}
-                     {demande.Observation && <div className="mt-4 pt-4 border-t border-slate-200 print:border-black print:mt-2 print:pt-2"><strong>Obs:</strong> {demande.Observation}</div>}
+                     <p className="mb-2 print:mb-1"><strong>Lieu:</strong> {demande.lieu_prestation}</p>
+                     <div className="print:mt-1">{demande.description}</div>
+                     {demande.Observation && (
+                        <div className="mt-4 pt-4 border-t border-slate-200 print:border-black print:mt-2 print:pt-2">
+                           <strong>Observations:</strong>
+                           <div className="print:mt-1">{demande.Observation}</div>
+                        </div>
+                     )}
                   </div>
                </div>
 
                <div className="print:border print:border-black print:p-3">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 print:text-black print:border-b print:border-black print:pb-1">4. Moyens (Engins) Demandés</h4>
+                  <div className="flex justify-between items-center mb-3">
+                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider print:text-black print:border-b print:border-black print:pb-1">4. Moyens (Engins) Demandés</h4>
+                     {/* Edit Equipment Button - Only for DSL and editable statuses */}
+                     {user.structure === 'DSL' && ['En Attente', 'Validé'].includes(demande.Status) && (
+                        <button 
+                           onClick={openEditEquipModal}
+                           className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition print:hidden"
+                        >
+                           <Edit className="w-4 h-4" /> Modifier
+                        </button>
+                     )}
+                  </div>
                   <ul className="space-y-2 print:list-disc print:pl-5">
                      {demande.engins_detail?.length === 0 && <span className="text-slate-400 text-sm print:text-black">Aucun engin réservé</span>}
-                     {demande.engins_detail?.map(eq => (
+                     {demande.engins_detail?.map(eq => {
+                        const isAvail = enginsAvailability ? enginsAvailability[eq.code] : null;
+                        return (
                         <li key={eq.code} className="flex items-center gap-2 text-sm text-slate-700 bg-blue-50/50 px-3 py-2 rounded border border-blue-100 print:bg-white print:border-none print:p-0 print:text-black font-medium">
+                           {user.structure === 'DSL' && demande.Status === 'Validé' && ['secretaire', 'chef service'].includes(user.role) && (
+                              <input 
+                                 type="checkbox" 
+                                 checked={assignedEngins.includes(eq.code)}
+                                 onChange={(e) => {
+                                    if(e.target.checked) setAssignedEngins(prev => [...prev, eq.code]);
+                                    else setAssignedEngins(prev => prev.filter(c => c !== eq.code));
+                                 }}
+                                 disabled={isAvail === false}
+                                 className="w-4 h-4 text-blue-600 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                              />
+                           )}
                            <Anchor className="w-4 h-4 text-blue-500 print:hidden" />
                            {eq.prestation} <span className="text-blue-400 text-xs text-slate-400 print:text-black print:opacity-60">({eq.code})</span>
+                           {isAvail === false && <span className="text-xs font-bold text-red-500 ml-auto mr-2 border border-red-200 bg-red-50 px-2 py-0.5 rounded">Non Dispo</span>}
+                           {isAvail === true && <span className="text-xs font-bold text-green-600 ml-auto mr-2 border border-green-200 bg-green-50 px-2 py-0.5 rounded">Dispo</span>}
                         </li>
-                     ))}
+                     )})}
                   </ul>
                </div>
 
@@ -302,13 +407,20 @@ const DemandeView = ({ user }) => {
                   <div className={`rounded-xl p-5 border ${demande.Status === 'Rejeté' ? 'bg-red-50 border-red-200' : 'bg-orange-50 border-orange-200'}`}>
                      <div className="flex items-start gap-3">
                         <AlertTriangle className={`w-5 h-5 mt-0.5 flex-shrink-0 ${demande.Status === 'Rejeté' ? 'text-red-500' : 'text-orange-500'}`} />
-                        <div>
+                        <div className="flex-1">
                            <h4 className={`text-sm font-bold ${demande.Status === 'Rejeté' ? 'text-red-800' : 'text-orange-800'}`}>
                               {demande.Status === 'Rejeté' ? 'Motif du Rejet' : 'Motif de l\'Annulation'}
                            </h4>
                            <p className={`mt-1 text-sm ${demande.Status === 'Rejeté' ? 'text-red-700' : 'text-orange-700'}`}>
                               {demande.motif_rejet}
                            </p>
+                           {demande.Status === 'Annulé' && demande.annulation_info && (
+                              <div className="mt-3 pt-3 border-t border-orange-200 text-xs text-orange-700">
+                                 <p><strong>Annulé par:</strong> {demande.annulation_info.nom} {demande.annulation_info.prenom} ({demande.annulation_info.matricule})</p>
+                                 <p><strong>Structure:</strong> {demande.annulation_info.structure || '-'}</p>
+                                 <p><strong>Date:</strong> {demande.annulation_info.date}</p>
+                              </div>
+                           )}
                         </div>
                      </div>
                   </div>
@@ -319,11 +431,22 @@ const DemandeView = ({ user }) => {
                   <h4 className="text-xs font-bold uppercase tracking-wider mb-2 border-b border-black pb-1">Réservé à La Division Logistique (DSL)</h4>
                   <div className="flex justify-between text-sm font-medium">
                      <p>Validée le : <span className="font-bold">{demande.date_validation_prestataire || '__________________'}</span></p>
+                     <p>Enregistrée par : <span className="font-bold">{demande.validateur_dsl ? `${demande.val_dsl_nom} ${demande.val_dsl_prenom}` : '__________________'}</span></p>
                   </div>
                   <div className="flex justify-between text-sm mt-3 font-medium">
-                     <p>OT ou ODS N° : <span className="font-bold">{demande.OT_ODS || '__________________'}</span></p>
-                     <p>Le fournisseur : <span className="font-bold">{demande.Fournisseur || '__________________'}</span></p>
+                     <p>OT N° (DSL) : <span className="font-bold">{demande.validateur_dsl && !demande.date_cpa ? demande.OT_ODS : '__________________'}</span></p>
+                     <p>ODS N° (CPA) : <span className="font-bold">{demande.date_cpa ? demande.OT_ODS : '__________________'}</span></p>
                   </div>
+                  {demande.Fournisseur && (
+                     <div className="flex justify-between text-sm mt-3 font-medium">
+                        <p>Fournisseur (CPA) : <span className="font-bold">{demande.Fournisseur}</span></p>
+                     </div>
+                  )}
+                  {demande.date_cpa && (
+                     <div className="flex justify-between text-sm mt-3 font-medium">
+                        <p>Date Sous-Traitance (CPA) : <span className="font-bold">{demande.date_cpa}</span></p>
+                     </div>
+                  )}
                </div>
 
                {/* SIGNATURES FOR PRINTER */}
@@ -337,7 +460,8 @@ const DemandeView = ({ user }) => {
                      <p className="font-bold uppercase text-sm">Validation Chef Département</p>
                      {demande.date_validation_demandeur ? (
                         <>
-                           <p className="text-xs italic mt-1 mb-16">(Validé le {demande.date_validation_demandeur})</p>
+                           <p className="text-xs font-bold mt-1">{demande.val_dem_nom} {demande.val_dem_prenom}</p>
+                           <p className="text-xs italic mt-1 mb-10">(Validé le {demande.date_validation_demandeur})</p>
                         </>
                      ) : (
                         <p className="text-xs italic mt-10">Non validé</p>
@@ -355,15 +479,42 @@ const DemandeView = ({ user }) => {
             {/* Steps Progress Bar */}
             <div className="mb-8">
                {(() => {
-                  const steps = [
-                     { label: 'En Attente', key: 'en_attente' },
-                     { label: 'Validé', key: 'valide' },
-                     { label: 'Approuvé', key: 'approuve' },
-                     { label: 'En Cours', key: 'en_cours' },
-                     { label: 'Clôturé', key: 'cloture' },
-                  ];
+                  // Check if this demande went through Sous Traitance
+                  // It's Sous Traitance if: currently in that status, OR was approved by CPA (has date_cpa)
+                  const hasSousTraitance = demande.Status === 'Sous Traitance' || 
+                                          demande.date_cpa ||
+                                          (demande.Status === 'Approuvé' && demande.date_validation_prestataire && !demande.validateur_dsl);
                   
-                  const statusOrder = { 'En Attente': 0, 'Validé': 1, 'Approuvé': 2, 'En Cours': 3, 'Clôturé': 4 };
+                  const steps = hasSousTraitance
+                     ? [
+                        { label: 'En Attente', key: 'en_attente' },
+                        { label: 'Validé', key: 'valide' },
+                        { label: 'Sous Traitance', key: 'sous_traitance' },
+                        { label: 'Approuvé', key: 'approuve' },
+                        { label: 'En Cours', key: 'en_cours' },
+                        { label: 'Clôturé', key: 'cloture' },
+                     ]
+                     : [
+                        { label: 'En Attente', key: 'en_attente' },
+                        { label: 'Validé', key: 'valide' },
+                        { label: 'Approuvé', key: 'approuve' },
+                        { label: 'En Cours', key: 'en_cours' },
+                        { label: 'Clôturé', key: 'cloture' },
+                     ];
+                  
+                  const statusOrder = hasSousTraitance
+                     ? { 'En Attente': 0, 'Validé': 1, 'Sous Traitance': 2, 'Approuvé': 3, 'En Cours': 4, 'Clôturé': 5 }
+                     : { 'En Attente': 0, 'Validé': 1, 'Approuvé': 2, 'En Cours': 3, 'Clôturé': 4 };
+                  
+                  // For cancelled demandes, determine at which stage it was cancelled
+                  let cancelledAtIdx = -1;
+                  if (demande.Status === 'Annulé') {
+                     if (!demande.date_validation_demandeur) cancelledAtIdx = 0; // En Attente
+                     else if (demande.validateur_dsl && !demande.date_validation_prestataire) cancelledAtIdx = hasSousTraitance ? 2 : 2; // Sous Traitance or Approuvé
+                     else if (!demande.validateur_dsl && demande.date_validation_prestataire) cancelledAtIdx = hasSousTraitance ? 3 : 2; // Approuvé
+                     else cancelledAtIdx = 1; // Validé
+                  }
+                  
                   const currentIdx = statusOrder[demande.Status] ?? -1;
                   const isTerminal = ['Rejeté', 'Annulé'].includes(demande.Status);
 
@@ -383,22 +534,28 @@ const DemandeView = ({ user }) => {
                            {steps.map((step, idx) => {
                               const isActive = idx <= currentIdx && !isTerminal;
                               const isCurrent = idx === currentIdx && !isTerminal;
+                              const isCancelled = idx === cancelledAtIdx;
                               return (
                                  <React.Fragment key={step.key}>
                                     <div className="flex flex-col items-center flex-1">
                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all ${
-                                          isActive 
-                                             ? (isCurrent ? 'bg-blue-600 border-blue-600 text-white scale-110 shadow-lg shadow-blue-200' : 'bg-green-500 border-green-500 text-white')
-                                             : 'bg-white border-slate-300 text-slate-400'
+                                          isCancelled
+                                             ? 'bg-red-500 border-red-500 text-white'
+                                             : isActive 
+                                                ? (isCurrent ? 'bg-blue-600 border-blue-600 text-white scale-110 shadow-lg shadow-blue-200' : 'bg-green-500 border-green-500 text-white')
+                                                : 'bg-white border-slate-300 text-slate-400'
                                        }`}>
-                                          {isActive && !isCurrent ? <Check className="w-4 h-4" /> : idx + 1}
+                                          {isCancelled ? <X className="w-4 h-4" /> : (isActive && !isCurrent ? <Check className="w-4 h-4" /> : idx + 1)}
                                        </div>
-                                       <span className={`text-[10px] mt-1.5 font-medium text-center ${isActive ? 'text-slate-800' : 'text-slate-400'}`}>
+                                       <span className={`text-[10px] mt-1.5 font-medium text-center ${isActive || isCancelled ? 'text-slate-800' : 'text-slate-400'}`}>
                                           {step.label}
                                        </span>
                                     </div>
                                     {idx < steps.length - 1 && (
-                                       <div className={`flex-1 h-0.5 -mt-4 ${idx < currentIdx && !isTerminal ? 'bg-green-400' : 'bg-slate-200'}`} />
+                                       <div className={`flex-1 h-0.5 -mt-4 ${
+                                          isCancelled ? 'bg-red-400' : 
+                                          (idx < currentIdx && !isTerminal ? 'bg-green-400' : 'bg-slate-200')
+                                       }`} />
                                     )}
                                  </React.Fragment>
                               );
@@ -434,17 +591,21 @@ const DemandeView = ({ user }) => {
                <div className={`p-5 bg-white border border-slate-200 rounded-xl shadow-sm border-l-4 ${
                   demande.Status === 'Rejeté' && demande.date_validation_demandeur ? 'border-l-red-400' : 'border-l-indigo-400'
                }`}>
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Approbation Chef Département DSL</h4>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Approbation DSL / CPA</h4>
                   {demande.Status === 'Rejeté' && demande.date_validation_demandeur ? (
                      <div className="mt-3 flex items-center gap-1 text-red-600 text-xs font-bold"><XCircle className="w-4 h-4" /> Rejeté par DSL</div>
+                  ) : demande.Status === 'Sous Traitance' ? (
+                     <span className="text-orange-500 text-sm font-bold flex items-center gap-1 mt-3"><CheckCircle className="w-4 h-4" /> Transféré à la Sous-Traitance (CPA)</span>
                   ) : demande.date_validation_prestataire ? (
                      <>
                         <div className="mt-3 flex items-center gap-1 text-indigo-600 text-xs font-bold"><CheckCircle className="w-4 h-4" /> Approuvé le {demande.date_validation_prestataire}</div>
-                        {demande.OT_ODS && <p className="text-xs text-slate-500 mt-1">OT/ODS: {demande.OT_ODS}</p>}
-                        {demande.Fournisseur && <p className="text-xs text-slate-500">Fournisseur: {demande.Fournisseur}</p>}
+                        {demande.OT_ODS && !demande.date_cpa && <p className="text-xs text-slate-500 mt-1">OT (DSL): {demande.OT_ODS}</p>}
+                        {demande.OT_ODS && demande.date_cpa && <p className="text-xs text-slate-500 mt-1">ODS (CPA): {demande.OT_ODS}</p>}
+                        {demande.Fournisseur && <p className="text-xs text-slate-500">Fournisseur (CPA): {demande.Fournisseur}</p>}
+                        {demande.date_cpa && <p className="text-xs text-slate-500">Date CPA: {demande.date_cpa}</p>}
                      </>
                   ) : (
-                     <span className="text-slate-400 text-sm">Non traité par DSL</span>
+                     <span className="text-slate-400 text-sm">Non traité par la logistique</span>
                   )}
                </div>
             </div>
@@ -458,8 +619,8 @@ const DemandeView = ({ user }) => {
             {/* ACTIONS CONDITIONNELLES */}
             <div className="flex flex-col gap-4">
                
-               {/* Chef Département Demandeur: Valider ou Rejeter (quand En Attente) */}
-               {user.role === 'chef departement' && demande.Status === 'En Attente' && user.structure !== 'DSL' && (
+               {/* Chef Departement Demandeur: Valider ou Rejeter (quand En Attente) */}
+               {user.role === 'chef departement' && demande.Status === 'En Attente' && (
                   <div className="grid grid-cols-2 gap-4">
                      <button onClick={handleValider} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl shadow transition-all flex items-center justify-center gap-2 text-lg">
                         <Check className="w-6 h-6" /> Valider
@@ -470,23 +631,22 @@ const DemandeView = ({ user }) => {
                   </div>
                )}
 
-               {/* Chef DSL: Approuver ou Rejeter (quand Validé) */}
-               {user.structure === 'DSL' && user.role === 'chef departement' && demande.Status === 'Validé' && (
+               {/* Chef DSL: Approuver ou ND (quand Validé) */}
+               {user.structure === 'DSL' && ['secretaire', 'chef service'].includes(user.role) && demande.Status === 'Validé' && (
                   <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-6 shadow-sm">
-                     <h3 className="text-indigo-900 font-bold mb-4">Approbation DSL</h3>
-                     <div className="grid grid-cols-2 gap-4 mb-5">
-                        <div>
-                           <label className="block text-xs font-semibold text-indigo-800 mb-1">OT ou ODS N° <span className="text-red-500">*</span></label>
-                           <input type="text" placeholder="Obligatoire" value={dslForm.ot_ods} onChange={(e) => setDslForm({ ...dslForm, ot_ods: e.target.value })} className="w-full px-3 py-2 rounded border border-indigo-200 outline-none focus:ring-2 focus:ring-indigo-500" />
-                        </div>
-                        <div>
-                           <label className="block text-xs font-semibold text-indigo-800 mb-1">Fournisseur <span className="text-red-500">*</span></label>
-                           <input type="text" placeholder="Obligatoire" value={dslForm.fournisseur} onChange={(e) => setDslForm({ ...dslForm, fournisseur: e.target.value })} className="w-full px-3 py-2 rounded border border-indigo-200 outline-none focus:ring-2 focus:ring-indigo-500" />
+                     <h3 className="text-indigo-900 font-bold mb-4">Traitement Logistique (DSL)</h3>
+                     <div className="flex gap-4 mb-5">
+                        <button onClick={() => handleDslValider('nd')} className="w-1/3 bg-orange-100 hover:bg-orange-200 text-orange-700 font-bold py-3 rounded-lg shadow-sm transition-all flex items-center justify-center gap-2 border border-orange-300 whitespace-nowrap">
+                           ND (Sous-Traitance)
+                        </button>
+                        <div className="flex-1">
+                           <label className="block text-xs font-semibold text-indigo-800 mb-1">OT N° <span className="text-red-500">*</span></label>
+                           <input type="text" placeholder="Obligatoire (Si Assignation)" value={dslForm.ot} onChange={(e) => setDslForm({ ...dslForm, ot: e.target.value })} className="w-full px-3 py-2 rounded border border-indigo-200 outline-none focus:ring-2 focus:ring-indigo-500 text-sm" />
                         </div>
                      </div>
                      <div className="grid grid-cols-3 gap-4">
-                        <button onClick={handleDslValider} className="col-span-2 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg shadow transition-all flex items-center justify-center gap-2">
-                           <CheckCircle className="w-5 h-5" /> Approuver
+                        <button onClick={() => handleDslValider('approuver')} className="col-span-2 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg shadow transition-all flex items-center justify-center gap-2">
+                           <CheckCircle className="w-5 h-5" /> Assigner & Approuver
                         </button>
                         <button onClick={openRejetModal} className="col-span-1 w-full bg-red-100 hover:bg-red-200 text-red-700 font-bold py-3 rounded-lg shadow-sm transition-all flex items-center justify-center gap-2">
                            Rejeter
@@ -495,15 +655,44 @@ const DemandeView = ({ user }) => {
                   </div>
                )}
 
-               {/* Chef DSL: Passer En Cours (quand Approuvé) */}
-               {user.structure === 'DSL' && user.role === 'chef departement' && demande.Status === 'Approuvé' && (
+               {/* Sec/Chef CPA: Approuver (quand Sous Traitance) */}
+               {user.structure === 'CPA' && ['secretaire', 'chef service'].includes(user.role) && demande.Status === 'Sous Traitance' && (
+                  <div className="bg-purple-50 border border-purple-200 rounded-xl p-6 shadow-sm">
+                     <h3 className="text-purple-900 font-bold mb-4">Sous-Traitance (CPA)</h3>
+                     <div className="grid grid-cols-3 gap-4 mb-5">
+                        <div>
+                           <label className="block text-xs font-semibold text-purple-800 mb-1">ODS N° <span className="text-red-500">*</span></label>
+                           <input type="text" placeholder="Obligatoire" value={cpaForm.ods} onChange={(e) => setCpaForm({ ...cpaForm, ods: e.target.value })} className="w-full px-3 py-2 rounded border border-purple-200 outline-none focus:ring-2 focus:ring-purple-500 text-sm" />
+                        </div>
+                        <div>
+                           <label className="block text-xs font-semibold text-purple-800 mb-1">Date (Du) <span className="text-red-500">*</span></label>
+                           <input type="date" value={cpaForm.date_cpa} onChange={(e) => setCpaForm({ ...cpaForm, date_cpa: e.target.value })} className="w-full px-3 py-2 rounded border border-purple-200 outline-none focus:ring-2 focus:ring-purple-500 text-sm" />
+                        </div>
+                        <div>
+                           <label className="block text-xs font-semibold text-purple-800 mb-1">Fournisseur <span className="text-red-500">*</span></label>
+                           <input type="text" placeholder="Obligatoire" value={cpaForm.fournisseur} onChange={(e) => setCpaForm({ ...cpaForm, fournisseur: e.target.value })} className="w-full px-3 py-2 rounded border border-purple-200 outline-none focus:ring-2 focus:ring-purple-500 text-sm" />
+                        </div>
+                     </div>
+                     <div className="grid grid-cols-2 gap-4">
+                        <button onClick={handleCpaValider} className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 rounded-xl shadow transition-all flex items-center justify-center gap-2 text-lg">
+                           <CheckCircle className="w-6 h-6" /> Approuver la Sous-Traitance
+                        </button>
+                        <button onClick={openAnnulerModal} className="w-full bg-orange-50 hover:bg-orange-100 text-orange-700 font-bold py-4 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 border border-orange-200">
+                           <Ban className="w-5 h-5" /> Annuler la Sous-Traitance
+                        </button>
+                     </div>
+                  </div>
+               )}
+
+               {/* Sec/Chef DSL/CPA: Passer En Cours (quand Approuvé) */}
+               {['DSL', 'CPA'].includes(user.structure) && ['secretaire', 'chef service'].includes(user.role) && demande.Status === 'Approuvé' && (
                   <button onClick={handleEnCours} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow transition-all flex items-center justify-center gap-2 text-lg">
                      <Play className="w-6 h-6" /> Démarrer — Passer En Cours
                   </button>
                )}
 
-               {/* Chef DSL: Clôturer (quand En Cours) */}
-               {user.structure === 'DSL' && user.role === 'chef departement' && demande.Status === 'En Cours' && (
+               {/* Sec/Chef DSL/CPA: Clôturer (quand En Cours) */}
+               {['DSL', 'CPA'].includes(user.structure) && ['secretaire', 'chef service'].includes(user.role) && demande.Status === 'En Cours' && (
                   <button onClick={handleCloturer} className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-4 rounded-xl shadow transition-all flex items-center justify-center gap-2 text-lg">
                      <CheckCircle className="w-6 h-6" /> Clôturer définitivement la demande
                   </button>
@@ -550,6 +739,87 @@ const DemandeView = ({ user }) => {
                </div>
             )}
          </div>
+
+         {/* Edit Equipment Modal */}
+         {editEquipModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden animate-in max-h-[90vh] flex flex-col">
+                  <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+                     <h3 className="font-bold text-slate-800 text-lg">Modifier les Engins</h3>
+                     <button onClick={() => setEditEquipModal(false)} className="text-slate-400 hover:text-slate-600 transition">
+                        <X className="w-5 h-5" />
+                     </button>
+                  </div>
+                  <div className="p-6 overflow-y-auto flex-1">
+                     {/* Search */}
+                     <div className="mb-4">
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Rechercher des engins</label>
+                        <div className="relative">
+                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                           <input
+                              type="text"
+                              value={engineSearch}
+                              onChange={(e) => setEngineSearch(e.target.value)}
+                              placeholder="Tapez au moins 2 caractères..."
+                              className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
+                           />
+                        </div>
+                     </div>
+
+                     {/* Search Results */}
+                     {equipements.length > 0 && (
+                        <div className="mb-4 max-h-48 overflow-y-auto border border-slate-200 rounded-lg">
+                           {equipements.map(eq => (
+                              <label key={eq.code} className="flex items-center gap-3 px-4 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0">
+                                 <input
+                                    type="checkbox"
+                                    checked={selectedEngins.includes(eq.code)}
+                                    onChange={() => toggleEngin(eq.code)}
+                                    className="w-4 h-4 text-blue-600 rounded"
+                                 />
+                                 <span className="text-sm text-slate-700">{eq.prestation}</span>
+                                 <span className="text-xs text-slate-400">({eq.code})</span>
+                              </label>
+                           ))}
+                        </div>
+                     )}
+
+                     {/* Selected Equipment */}
+                     <div className="mb-4">
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">
+                           Engins sélectionnés ({selectedEngins.length})
+                        </label>
+                        {selectedEngins.length === 0 ? (
+                           <p className="text-sm text-slate-400">Aucun engin sélectionné</p>
+                        ) : (
+                           <div className="flex flex-wrap gap-2">
+                              {selectedEngins.map(code => (
+                                 <span key={code} className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
+                                    {code}
+                                    <button onClick={() => toggleEngin(code)} className="hover:text-blue-900">
+                                       <X className="w-3 h-3" />
+                                    </button>
+                                 </span>
+                              ))}
+                           </div>
+                        )}
+                     </div>
+
+                     {editEquipError && (
+                        <p className="text-red-500 text-sm font-medium">{editEquipError}</p>
+                     )}
+                  </div>
+                  <div className="bg-slate-50 border-t border-slate-200 px-6 py-4 flex justify-end gap-3">
+                     <button onClick={() => setEditEquipModal(false)} className="px-5 py-2.5 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition">
+                        Annuler
+                     </button>
+                     <button onClick={handleUpdateEngins} className="px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow transition">
+                        Enregistrer
+                     </button>
+                  </div>
+               </div>
+            </div>
+         )}
 
       </div>
    );

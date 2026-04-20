@@ -13,9 +13,11 @@ const DemandeForm = ({ user }) => {
     date_debut: '',
     date_fin: '',
     description: '',
-    observation: '',
-    creator_matricule: user.matricule,
-    engins: []
+    observations: [''],
+    creator_matricule: '',
+    validateur_demandeur: '',
+    engins: [],
+    demandeur_structure: user.structure === 'DSL' ? '' : user.structure
   });
 
   // Données récupérées par la jointure (affichage uniquement)
@@ -24,6 +26,7 @@ const DemandeForm = ({ user }) => {
   const [equipements, setEquipements] = useState([]);
   const [engineSearch, setEngineSearch] = useState('');
   const [employees, setEmployees] = useState([]);
+  const [chefs, setChefs] = useState([]);
   const [loadingAffaire, setLoadingAffaire] = useState(false);
   const [affaireError, setAffaireError] = useState('');
   const [submitError, setSubmitError] = useState('');
@@ -37,10 +40,15 @@ const DemandeForm = ({ user }) => {
   }, [engineSearch]);
 
   useEffect(() => {
-    if (user.role === 'secretaire') {
-      axios.get(`http://localhost:5000/api/employees?structure=${user.structure}`).then(res => setEmployees(res.data));
+    if (user.role === 'secretaire' && user.structure === 'DSL' && formData.demandeur_structure) {
+      axios.get(`http://localhost:5000/api/employees?structure=${formData.demandeur_structure}`).then(res => {
+        setEmployees(res.data.filter(e => e.role !== 'chef departement'));
+        setChefs(res.data.filter(e => e.role === 'chef departement'));
+      });
+    } else if (user.role === 'secretaire' && user.structure !== 'DSL') {
+      axios.get(`http://localhost:5000/api/employees?structure=${user.structure}`).then(res => setEmployees(res.data.filter(e => e.role !== 'chef departement')));
     }
-  }, [user]);
+  }, [user, formData.demandeur_structure]);
 
   // Charger les infos de l'affaire quand code_affaire = 7 caractères
   useEffect(() => {
@@ -81,15 +89,56 @@ const DemandeForm = ({ user }) => {
     });
   };
 
+  const handleObservationChange = (index, value) => {
+    const newObs = [...formData.observations];
+    newObs[index] = value;
+    setFormData(prev => ({ ...prev, observations: newObs }));
+  };
+
+  const handleObservationKeyDown = (e, index) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const newObs = [...formData.observations];
+      newObs.splice(index + 1, 0, '');
+      setFormData(prev => ({ ...prev, observations: newObs }));
+
+      // Auto-focus the next input after state updates
+      setTimeout(() => {
+        const obsInputs = document.querySelectorAll('.obs-input');
+        if (obsInputs[index + 1]) obsInputs[index + 1].focus();
+      }, 0);
+    } else if (e.key === 'Backspace' && formData.observations[index] === '' && formData.observations.length > 1) {
+      e.preventDefault();
+      const newObs = [...formData.observations];
+      newObs.splice(index, 1);
+      setFormData(prev => ({ ...prev, observations: newObs }));
+
+      // Auto-focus the previous input
+      setTimeout(() => {
+        const obsInputs = document.querySelectorAll('.obs-input');
+        if (obsInputs[index - 1]) obsInputs[index - 1].focus();
+      }, 0);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitError('');
     setIsSubmitting(true);
+
+    // Join observations with bullets
+    const joinedObservations = formData.observations
+      .filter(obs => obs.trim() !== '')
+      .map(obs => '• ' + obs.trim())
+      .join('\n');
+
     try {
       const res = await axios.post('http://localhost:5000/api/demandes', {
         ...formData,
+        observation: joinedObservations,
         structure: user.struc_code || 'GEN',
-        creator_matricule: user.matricule
+        creator_matricule: formData.creator_matricule || user.matricule,
+        actual_creator_matricule: user.role === 'secretaire' ? user.matricule : null
       });
       navigate('/');
     } catch (err) {
@@ -101,7 +150,7 @@ const DemandeForm = ({ user }) => {
 
   const getMinDate = () => {
     const date = new Date();
-    date.setDate(date.getDate() + 3); // add 3 days
+    date.setDate(date.getDate() + 2); // add 2 days
     return date.toISOString().split('T')[0];
   };
 
@@ -155,9 +204,9 @@ const DemandeForm = ({ user }) => {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Réf. ODS Client</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Réf. ODS Client (Optionnel)</label>
               <input
-                type="text" name="ref_ods_client" value={formData.ref_ods_client} onChange={handleChange} required
+                type="text" name="ref_ods_client" value={formData.ref_ods_client} onChange={handleChange}
                 className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition"
                 placeholder="Ex: ODS-2026-X..."
               />
@@ -242,22 +291,86 @@ const DemandeForm = ({ user }) => {
         {/* Section 4: Observations */}
         <div className="space-y-6">
           <h3 className="text-lg font-semibold text-blue-800 border-b pb-2">4. Observations</h3>
-          <textarea
-            name="observation" value={formData.observation} onChange={handleChange}
-            rows={2} className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
-          />
+          <p className="text-xs text-slate-500 -mt-4 mb-2">Appuyez sur "Entrée" pour ajouter un nouveau point d'observation.</p>
+          <div className="space-y-3">
+            {formData.observations.map((obs, idx) => (
+              <div key={idx} className="flex items-center gap-3">
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />
+                <input
+                  type="text"
+                  value={obs}
+                  onChange={(e) => handleObservationChange(idx, e.target.value)}
+                  onKeyDown={(e) => handleObservationKeyDown(e, idx)}
+                  className="obs-input flex-1 px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition text-sm"
+                  placeholder="Observation..."
+                />
+              </div>
+            ))}
+          </div>
         </div>
 
-        {user.role === 'secretaire' && (
+        {user.role === 'secretaire' && user.structure === 'DSL' && (
+          <div className="p-4 bg-purple-50 rounded-lg border border-purple-100">
+            <label className="block text-sm font-semibold text-purple-900 mb-2">Structure du demandeur</label>
+            <input
+              type="text"
+              name="demandeur_structure"
+              value={formData.demandeur_structure}
+              onChange={handleChange}
+              required
+              className="w-full px-4 py-3 rounded-lg border border-purple-200 focus:ring-2 focus:ring-purple-500 outline-none bg-white"
+              placeholder="Ex: ISI, DSL, GPA..."
+            />
+          </div>
+        )}
+
+        {user.role === 'secretaire' && user.structure !== 'DSL' && (
           <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
-            <label className="block text-sm font-semibold text-blue-900 mb-2">Sélectionner le demandeur (Employé du même service)</label>
+            <label className="block text-sm font-semibold text-blue-900 mb-2">Sélectionner le demandeur (Employé de {user.structure})</label>
             <select
               name="creator_matricule"
               value={formData.creator_matricule}
               onChange={handleChange}
+              required
               className="w-full px-4 py-3 rounded-lg border border-blue-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
             >
-              <option value={user.matricule}>Sélectionner un employé...</option>
+              <option value="">Sélectionner un employé...</option>
+              {employees.filter(e => e.matricule !== user.matricule).map(emp => (
+                <option key={emp.matricule} value={emp.matricule}>{emp.nom} {emp.prenom} - {emp.matricule}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {user.role === 'secretaire' && user.structure === 'DSL' && formData.demandeur_structure && (
+          <div className="p-4 bg-orange-50 rounded-lg border border-orange-100">
+            <label className="block text-sm font-semibold text-orange-900 mb-2">Validateur Demandeur (Chef signataire sur la version papier)</label>
+            <select
+              name="validateur_demandeur"
+              value={formData.validateur_demandeur || ''}
+              onChange={handleChange}
+              required
+              className="w-full px-4 py-3 rounded-lg border border-orange-200 focus:ring-2 focus:ring-orange-500 outline-none bg-white"
+            >
+              <option value="">Sélectionner le chef validateur...</option>
+              {chefs.map(emp => (
+                <option key={emp.matricule} value={emp.matricule}>{emp.nom} {emp.prenom} - {emp.structure}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {user.role === 'secretaire' && user.structure === 'DSL' && formData.demandeur_structure && (
+          <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+            <label className="block text-sm font-semibold text-blue-900 mb-2">Sélectionner le demandeur (Employé de {formData.demandeur_structure})</label>
+            <select
+              name="creator_matricule"
+              value={formData.creator_matricule}
+              onChange={handleChange}
+              required
+              className="w-full px-4 py-3 rounded-lg border border-blue-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+            >
+              <option value="">Sélectionner un employé...</option>
               {employees.filter(e => e.matricule !== user.matricule).map(emp => (
                 <option key={emp.matricule} value={emp.matricule}>{emp.nom} {emp.prenom} - {emp.matricule}</option>
               ))}
