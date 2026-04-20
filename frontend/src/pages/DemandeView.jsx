@@ -692,11 +692,13 @@ const DemandeView = ({ user }) => {
                )}
 
                {/* Sec/Chef DSL/CPA: Clôturer (quand En Cours) */}
-               {['DSL', 'CPA'].includes(user.structure) && ['secretaire', 'chef service'].includes(user.role) && demande.Status === 'En Cours' && (
+               {(['DSL', 'CPA'].includes(user.structure) && ['secretaire', 'chef service'].includes(user.role)) && demande.Status === 'En Cours' && (
                   <button onClick={handleCloturer} className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-4 rounded-xl shadow transition-all flex items-center justify-center gap-2 text-lg">
                      <CheckCircle className="w-6 h-6" /> Clôturer définitivement la demande
                   </button>
                )}
+
+
 
                {/* Annuler: visible selon les droits */}
                {canAnnuler() && (

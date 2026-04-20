@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Wrench, Calendar, Plus, CheckCircle, XCircle, Clock, AlertTriangle, Gauge, Filter } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Wrench, Calendar, Plus, CheckCircle, XCircle, Clock, AlertTriangle, Gauge, Filter, ArrowLeft } from 'lucide-react';
 
 const MaintenanceDSL = ({ user }) => {
+  const navigate = useNavigate();
   const [requests, setRequests] = useState([]);
   const [maintenanceTypes, setMaintenanceTypes] = useState([]);
   const [equipements, setEquipements] = useState([]);
@@ -127,6 +129,12 @@ const MaintenanceDSL = ({ user }) => {
     <div className="max-w-6xl mx-auto px-4 py-8">
       <div className="mb-8 flex justify-between items-center">
         <div>
+          <button 
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2 text-slate-500 hover:text-slate-700 mb-2 transition"
+          >
+            <ArrowLeft className="w-4 h-4" /> Retour
+          </button>
           <h2 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
             <Wrench className="w-6 h-6" /> Maintenance des Équipements
           </h2>

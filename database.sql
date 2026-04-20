@@ -1,4 +1,4 @@
-USE parc_roulant_test2;
+USE parc_roulant_test6;
 GO
 
 CREATE TABLE [RH] (
@@ -19,8 +19,8 @@ GO
 INSERT INTO [RH] ([nom], [prenom], [matricule], [NUM_CONT], [structure],[role])
 VALUES  (N'karim', N'isi', N'010874', N'021669', N'ISI','agent'),
         (N'mansor', N'isi', N'798072', N'715172', N'ISI','secretaire'),
-        (N'zakaria', N'isi', N'048010', N'031691', N'DSL','chef service');
-        (N'salem', N'isi', N'068184', N'220727', N'ISI','chef departement'),
+        (N'zakaria2', N'isi', N'048045', N'031615', N'ISI','chef service'),
+        (N'ali', N'isi', N'068184', N'220727', N'ISI','chef departement'),
 
         (N'chehhat', N'dsl', N'010873', N'021663', N'DSL','agent'),
         (N'jamal', N'dsl', N'030870', N'031860', N'DSL','secretaire'),
@@ -29,13 +29,13 @@ VALUES  (N'karim', N'isi', N'010874', N'021669', N'ISI','agent'),
 
         (N'tayeb', N'cpa', N'010871', N'021661', N'CPA','agent'),
         (N'amine', N'cpa', N'039009', N'031693', N'CPA','secretaire'),
-        (N'amine', N'cpa', N'039009', N'031694', N'CPA','chef service'),
+        (N'reda', N'cpa', N'039010', N'031694', N'CPA','chef service'),
         (N'fateh', N'cpa', N'010872', N'021662', N'CPA','chef departement'),
 
-        (N'malek', N'MVE', N'010873', N'021663', N'MVE','agent'),
+        (N'malek', N'MVE', N'010883', N'021683', N'MVE','agent'),
         (N'ryad', N'MVE', N'457890', N'451536', N'MVE','secretaire'),
         (N'baraa', N'MVE', N'457891', N'451537', N'MVE','chef service'),
-        (N'malek', N'MVE', N'010874', N'021664', N'MVE','chef departement');
+        (N'malek', N'MVE', N'010894', N'021664', N'MVE','chef departement');
 
 
 GO

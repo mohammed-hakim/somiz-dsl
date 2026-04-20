@@ -1,7 +1,7 @@
 # Set-up Guide
 
 ### Database
-+ create sql server (express) database : parc_roulant_test2
++ create sql server (express) database : parc_roulant_test6
 + then execute database.sql 
 + if no error , then proceed
 

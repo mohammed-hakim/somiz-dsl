@@ -6,6 +6,8 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import DemandeForm from './pages/DemandeForm';
 import DemandeView from './pages/DemandeView';
+import DemandesList from './pages/DemandesList';
+import Statistics from './pages/Statistics';
 import MaintenanceDSL from './pages/MaintenanceDSL';
 import MaintenanceMVE from './pages/MaintenanceMVE';
 
@@ -93,6 +95,8 @@ function App() {
              <Route path="/" element={user ? <Dashboard user={user} /> : <Navigate to="/login" />} />
              <Route path="/demande/new" element={user ? <DemandeForm user={user} /> : <Navigate to="/login" />} />
              <Route path="/demande/:num_demande" element={user ? <DemandeView user={user} /> : <Navigate to="/login" />} />
+             <Route path="/demandes" element={user ? <DemandesList user={user} /> : <Navigate to="/login" />} />
+             <Route path="/statistics" element={user && user.structure === 'DSL' ? <Statistics user={user} /> : <Navigate to="/" />} />
              <Route path="/maintenance" element={user ? (user.structure === 'MVE' ? <MaintenanceMVE user={user} /> : <MaintenanceDSL user={user} />) : <Navigate to="/login" />} />
              <Route path="*" element={<Navigate to="/" />} />
           </Routes>

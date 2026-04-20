@@ -14,7 +14,7 @@ def get_db_connection():
     conn_str = (
         r'DRIVER={ODBC Driver 18 for SQL Server};'
         r'SERVER=.\SQLEXPRESS;'
-        r'DATABASE=parc_roulant_test2;'
+        r'DATABASE=parc_roulant_test6;'
         r'Trusted_Connection=yes;'
         r'TrustServerCertificate=yes;'
     )
@@ -242,10 +242,6 @@ def get_notifications():
     role = request.args.get("role")
     structure = request.args.get("structure")
 
-    # Notifications are only for DSL and CPA
-    if structure not in ('DSL', 'CPA'):
-        return jsonify([])
-
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -260,14 +256,20 @@ def get_notifications():
     """
 
     # Role-based visibility
-    if structure == 'DSL' and role in ('chef service', 'secretaire'):
-        q += " AND v.Status IN ('Validé', 'Approuvé', 'En Cours')"
-    elif structure == 'CPA' and role in ('chef service', 'secretaire'):
-        q += " AND v.Status IN ('Sous Traitance')"
-    elif role == 'agent':
+    if role == 'agent':
         q += f" AND v.utilisateur = '{matricule}'"
-    elif role in ('chef departement', 'chef service', 'secretaire'):
-        q += f" AND rh.structure = '{structure}'"
+    elif structure == 'DSL' and role == 'secretaire':
+        # DSL secretaire see Validé, Approuvé, En Cours
+        q += " AND v.Status IN ('Validé', 'Approuvé', 'En Cours')"
+    elif structure == 'CPA' and role == 'secretaire':
+        # CPA secretaire see Sous Traitance
+        q += " AND v.Status IN ('Sous Traitance')"
+    elif role == 'chef service':
+        # Chef service - no notifications (same as secretaire of demandeur)
+        pass
+    elif role in ('chef departement', 'secretaire'):
+        # Chef departement and secretaire of demandeur structure see their demandes
+        q += f" AND v.demandeur_structure = '{structure}'"
 
     q += " ORDER BY v.Date_Debut_Prestation ASC"
 
@@ -306,14 +308,17 @@ def get_notifications():
     """
     
     # Role-based visibility for end notifications
-    if structure == 'DSL' and role in ('chef service', 'secretaire'):
-        q_end += " AND v.demandeur_structure = 'DSL'"
-    elif structure == 'CPA' and role in ('chef service', 'secretaire'):
-        q_end += " AND v.demandeur_structure = 'CPA'"
-    elif role == 'agent':
+    if role == 'agent':
         q_end += f" AND v.utilisateur = '{matricule}'"
-    elif role in ('chef departement', 'chef service', 'secretaire'):
-        q_end += f" AND rh.structure = '{structure}'"
+    elif structure == 'DSL' and role == 'secretaire':
+        q_end += " AND v.demandeur_structure = 'DSL'"
+    elif structure == 'CPA' and role == 'secretaire':
+        q_end += " AND v.demandeur_structure = 'CPA'"
+    elif role == 'chef service':
+        # Chef service - no notifications (same as secretaire of demandeur)
+        pass
+    elif role in ('chef departement', 'secretaire'):
+        q_end += f" AND v.demandeur_structure = '{structure}'"
     
     q_end += " ORDER BY v.Date_Fin_Prestation ASC"
     
@@ -373,14 +378,20 @@ def get_demandes():
         conditions.append("v.date_validation_demandeur IS NOT NULL")
     elif structure == 'CPA':
         # CPA sees: 1) Sous Traitance demandes, OR 2) Demandes they processed (via journal)
-        conditions.append("(v.Status = 'Sous Traitance' OR EXISTS (SELECT 1 FROM Journal j WHERE j.CODE_PIECE = v.num_demande AND j.UTILISATEUR = ? AND j.TYPE_OPERATION LIKE '%CPA%'))")
-        params.append(matricule)
+        # AND j.UTILISATEUR = ?
+        conditions.append("(v.Status = 'Sous Traitance' OR EXISTS (SELECT 1 FROM Journal j WHERE j.CODE_PIECE = v.num_demande  AND j.TYPE_OPERATION LIKE '%CPA%'))")
+        # params.append(matricule)
         conditions.append("v.date_validation_demandeur IS NOT NULL")
     elif role == 'agent':
         conditions.append("v.utilisateur = ?")
         params.append(matricule)
-    elif role in ('chef departement', 'chef service', 'secretaire'):
-        conditions.append("rh.structure = ?")
+    elif role == 'chef departement':
+        # Chef departement sees demandes where demandeur_structure matches their structure
+        conditions.append("v.demandeur_structure = ?")
+        params.append(structure)
+    elif role in ('chef service', 'secretaire'):
+        # Chef service and secretaire see demandes where demandeur_structure matches their structure
+        conditions.append("v.demandeur_structure = ?")
         params.append(structure)
     
     # Apply optional filters
@@ -515,13 +526,13 @@ def get_demande_engins_availability(num_demande):
     
     availability = {}
     for code in requested_engins:
-        # Check if already assigned to another active demande
+        # Check if already assigned to another active demande (must be Approuvé or En Cours)
         cursor.execute("""
             SELECT d.num_demande FROM Demandes d
             JOIN Demande_Engins de ON d.num_demande = de.num_demande
             WHERE de.Code_Prestation = ? 
             AND d.num_demande != ?
-            AND d.Status NOT IN ('Clôturé', 'Rejeté', 'Annulé')
+            AND d.Status IN ('Approuvé', 'En Cours')
         """, (code, num_demande))
         assigned_row = cursor.fetchone()
         
