@@ -11,6 +11,7 @@ app = Flask(__name__)
 CORS(app)
 
 def get_db_connection():
+    print(55)
     conn_str = (
         r'DRIVER={ODBC Driver 18 for SQL Server};'
         r'SERVER=.\SQLEXPRESS;'
@@ -1342,4 +1343,4 @@ def get_demande_journaux(num_demande):
 #     print("Done.")
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5500)

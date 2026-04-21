@@ -18,8 +18,8 @@ const Statistics = ({ user }) => {
       });
 
       const [demandesRes, maintenanceRes] = await Promise.all([
-        axios.get(`http://localhost:5000/api/demandes?${params.toString()}`),
-        axios.get('http://localhost:5000/api/maintenance/requests')
+        axios.get(`http://localhost:5500/api/demandes?${params.toString()}`),
+        axios.get('http://localhost:5500/api/maintenance/requests')
       ]);
 
       setDemandes(demandesRes.data);
