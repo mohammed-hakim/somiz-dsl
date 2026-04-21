@@ -5,7 +5,7 @@ def get_db_connection():
     conn_str = (
         r'DRIVER={ODBC Driver 18 for SQL Server};'
         r'SERVER=.\SQLEXPRESS;'
-        r'DATABASE=parc_roulant_test6;'
+        r'DATABASE=parc_roulant_test;'
         r'Trusted_Connection=yes;'
         r'TrustServerCertificate=yes;'
     )

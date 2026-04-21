@@ -15,7 +15,7 @@ def get_db_connection():
     conn_str = (
         r'DRIVER={ODBC Driver 18 for SQL Server};'
         r'SERVER=.\SQLEXPRESS;'
-        r'DATABASE=parc_roulant_test6;'
+        r'DATABASE=parc_roulant_test;'
         r'Trusted_Connection=yes;'
         r'TrustServerCertificate=yes;'
     )
@@ -144,6 +144,7 @@ def get_equipements():
         {"code": r[0], "prestation": r[1]}
         for r in rows
     ])
+
 
 @app.route('/api/demandes', methods=['POST'])
 def create_demande():
@@ -840,9 +841,6 @@ def annuler_demande(num_demande):
     conn.close()
     return jsonify({"message": "Demande annulée"})
 
-# ============================================================================
-# MAINTENANCE REQUESTS API (DSL -> MVE Workflow)
-# ============================================================================
 
 @app.route('/api/maintenance/types', methods=['GET'])
 def get_maintenance_types():
@@ -1065,6 +1063,8 @@ def terminer_maintenance_request(request_id):
     
     return jsonify({"message": "Maintenance terminée avec succès"})
 
+
+
 @app.route('/api/equipements/<code_prestation>/availability', methods=['GET'])
 def check_equipment_availability(code_prestation):
     """Check if equipment is available (not in maintenance) for a date range"""
@@ -1107,9 +1107,6 @@ def check_equipment_availability(code_prestation):
         "conflicts": [{"id": r[0], "date_debut": r[1], "date_fin": r[2], "status": r[3]} for r in rows] if rows else []
     })
 
-# ============================================================================
-# MAINTENANCE RULES API (Preventive Scheduling)
-# ============================================================================
 
 @app.route('/api/maintenance/rules', methods=['GET'])
 def get_maintenance_rules():
@@ -1187,6 +1184,8 @@ def create_maintenance_rule():
     
     return jsonify({"message": "Règle de maintenance créée", "id": rule_id}), 201
 
+
+
 @app.route('/api/equipements/<code_prestation>/maintenance-alerts', methods=['GET'])
 def get_equipment_maintenance_alerts(code_prestation):
     """Get upcoming maintenance alerts for equipment based on rules"""
@@ -1253,6 +1252,9 @@ def get_equipment_maintenance_alerts(code_prestation):
     
     conn.close()
     return jsonify(alerts)
+
+
+
 
 @app.route('/api/demandes/<num_demande>/journaux', methods=['GET'])
 def get_demande_journaux(num_demande):

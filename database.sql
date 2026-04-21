@@ -1,4 +1,4 @@
-USE parc_roulant_test6;
+USE parc_roulant_test;
 GO
 
 CREATE TABLE [RH] (
