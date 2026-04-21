@@ -1,18 +1,18 @@
 # Set-up Guide
 
 ### Database
-+ create sql server (express) database : parc_roulant_test6
+
++ create sql server (express) database : parc_roulant_test
 + then execute database.sql 
 + if no error , then proceed
 
 ### Frontend
+
 + npm install 
 + npm run dev
 
 
 ### Backend
-> [!NOTE]
-> backend-m folder is a modular version easier of backend.
 
 + py -m venv venv
 + source venv/Scripts/Activate
