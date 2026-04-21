@@ -1,9 +1,0 @@
-# Ignore everything
-*
-
-
-# Allow specific file
-!.gitignore
-!README.md
-!requirements.txt
-!app.py
