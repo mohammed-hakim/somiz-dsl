@@ -91,7 +91,7 @@ const DemandeView = ({ user }) => {
 
    const fetchJournaux = async () => {
       try {
-         const { data } = await axios.get(`http://localhost:5500/api/demandes/${encodeURIComponent(num_demande)}/journaux`);
+         const { data } = await axios.get(`http://localhost:8080/api/demandes/${encodeURIComponent(num_demande)}/journaux`);
          setJournaux(data);
       } catch (err) {
          console.error(err);
@@ -100,12 +100,12 @@ const DemandeView = ({ user }) => {
 
    const fetchDemande = async () => {
       try {
-         const { data } = await axios.get(`http://localhost:5500/api/demandes/${encodeURIComponent(num_demande)}`);
+         const { data } = await axios.get(`http://localhost:8080/api/demandes/${encodeURIComponent(num_demande)}`);
          setDemande(data);
          document.title = data.num_demande || 'Demande';
 
          if (user.structure === 'DSL' && data.Status === 'Validé') {
-            axios.get(`http://localhost:5500/api/demandes/${encodeURIComponent(num_demande)}/engins_availability`)
+            axios.get(`http://localhost:8080/api/demandes/${encodeURIComponent(num_demande)}/engins_availability`)
                .then(res => {
                   setEnginsAvailability(res.data);
                   const available = Object.keys(res.data).filter(k => res.data[k]);
@@ -128,7 +128,7 @@ const DemandeView = ({ user }) => {
    // Fetch equipements for edit modal
    useEffect(() => {
       if (editEquipModal && engineSearch.length >= 2) {
-         axios.get(`http://localhost:5500/api/equipements?search=${engineSearch}`)
+         axios.get(`http://localhost:8080/api/equipements?search=${engineSearch}`)
             .then(res => setEquipements(res.data))
             .catch(e => console.error(e));
       }
@@ -145,7 +145,7 @@ const DemandeView = ({ user }) => {
    const handleUpdateEngins = async () => {
       try {
          setEditEquipError('');
-         await axios.put(`http://localhost:5500/api/demandes/${encodeURIComponent(num_demande)}/engins`, {
+         await axios.put(`http://localhost:8080/api/demandes/${encodeURIComponent(num_demande)}/engins`, {
             engins: selectedEngins,
             matricule: user.matricule
          });
@@ -165,7 +165,7 @@ const DemandeView = ({ user }) => {
    const handleValider = async () => {
       try {
          setErrorStatus('');
-         await axios.post(`http://localhost:5500/api/demandes/${encodeURIComponent(num_demande)}/valider`, { matricule: user.matricule });
+         await axios.post(`http://localhost:8080/api/demandes/${encodeURIComponent(num_demande)}/valider`, { matricule: user.matricule });
          fetchDemande();
       } catch (err) {
          setErrorStatus(err.response?.data?.error || 'Erreur lors de la validation.');
@@ -174,7 +174,7 @@ const DemandeView = ({ user }) => {
 
    const handleRejeter = (motif) => {
       setErrorStatus('');
-      axios.post(`http://localhost:5500/api/demandes/${encodeURIComponent(num_demande)}/rejeter`, {
+      axios.post(`http://localhost:8080/api/demandes/${encodeURIComponent(num_demande)}/rejeter`, {
          matricule: user.matricule,
          motif
       }).then(() => {
@@ -189,7 +189,7 @@ const DemandeView = ({ user }) => {
    const handleDslValider = async (action = 'approuver') => {
       try {
          setErrorStatus('');
-         await axios.post(`http://localhost:5500/api/demandes/${encodeURIComponent(num_demande)}/dsl_validate`, {
+         await axios.post(`http://localhost:8080/api/demandes/${encodeURIComponent(num_demande)}/dsl_validate`, {
             matricule: user.matricule,
             action,
             ot: action === 'approuver' ? dslForm.ot : '',
@@ -204,7 +204,7 @@ const DemandeView = ({ user }) => {
    const handleCpaValider = async () => {
       try {
          setErrorStatus('');
-         await axios.post(`http://localhost:5500/api/demandes/${encodeURIComponent(num_demande)}/cpa_validate`, {
+         await axios.post(`http://localhost:8080/api/demandes/${encodeURIComponent(num_demande)}/cpa_validate`, {
             matricule: user.matricule,
             ...cpaForm
          });
@@ -217,7 +217,7 @@ const DemandeView = ({ user }) => {
    const handleEnCours = async () => {
       try {
          setErrorStatus('');
-         await axios.post(`http://localhost:5500/api/demandes/${encodeURIComponent(num_demande)}/en_cours`, { matricule: user.matricule });
+         await axios.post(`http://localhost:8080/api/demandes/${encodeURIComponent(num_demande)}/en_cours`, { matricule: user.matricule });
          fetchDemande();
       } catch (err) {
          setErrorStatus(err.response?.data?.error || 'Erreur lors du passage en cours.');
@@ -227,7 +227,7 @@ const DemandeView = ({ user }) => {
    const handleCloturer = async () => {
       try {
          setErrorStatus('');
-         await axios.post(`http://localhost:5500/api/demandes/${encodeURIComponent(num_demande)}/cloturer`, { matricule: user.matricule });
+         await axios.post(`http://localhost:8080/api/demandes/${encodeURIComponent(num_demande)}/cloturer`, { matricule: user.matricule });
          fetchDemande();
       } catch (err) {
          setErrorStatus(err.response?.data?.error || 'Erreur lors de la clôture.');
@@ -236,7 +236,7 @@ const DemandeView = ({ user }) => {
 
    const handleAnnuler = (motif) => {
       setErrorStatus('');
-      axios.post(`http://localhost:5500/api/demandes/${encodeURIComponent(num_demande)}/annuler`, {
+      axios.post(`http://localhost:8080/api/demandes/${encodeURIComponent(num_demande)}/annuler`, {
          matricule: user.matricule,
          motif
       }).then(() => {

@@ -28,7 +28,7 @@ app.register_blueprint(equipements_bp)
 app.register_blueprint(notifications_bp)
 
 
-@affaires_bp.route('/api/test', methods=['GET'])
+@app.route('/api/test', methods=['GET'])
 def testing():
     return {"message": "Testing route is working!"}
 

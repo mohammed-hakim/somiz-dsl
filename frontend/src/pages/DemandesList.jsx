@@ -55,7 +55,7 @@ const DemandesList = ({ user }) => {
       if (filters.date_to) params.append('date_to', filters.date_to);
       if (filters.structureSearch) params.append('structure_search', filters.structureSearch);
 
-      const { data } = await axios.get(`http://localhost:5500/api/demandes?${params.toString()}`);
+      const { data } = await axios.get(`http://localhost:8080/api/demandes?${params.toString()}`);
       setDemandes(data);
     } catch (err) {
       console.error(err);
