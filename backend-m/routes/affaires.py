@@ -1,5 +1,6 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, request, jsonify
 from db.connection import get_db_connection
+from datetime import datetime
 
 affaires_bp = Blueprint('affaires', __name__)
 
