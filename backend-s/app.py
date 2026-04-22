@@ -27,5 +27,10 @@ app.register_blueprint(maintenance_bp)
 app.register_blueprint(equipements_bp)
 app.register_blueprint(notifications_bp)
 
+
+@affaires_bp.route('/api/test', methods=['GET'])
+def testing():
+    return {"message": "Testing route is working!"}
+
 if __name__ == "__main__":
-    app.run(debug=True, port=5500)
+    app.run(debug=True, port=8080)
