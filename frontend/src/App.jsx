@@ -18,7 +18,7 @@ const Navbar = ({ user, setUser }) => {
   useEffect(() => {
     const fetchCount = async () => {
       try {
-        const { data } = await axios.get(`http://localhost:8080/api/notifications?matricule=${user.matricule}&role=${user.role}&structure=${user.structure}`);
+        const { data } = await axios.get(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/notifications?matricule=${user.matricule}&role=${user.role}&structure=${user.structure}`);
         setNotifCount(data.length);
       } catch { /* silent */ }
     };

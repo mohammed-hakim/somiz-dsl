@@ -40,9 +40,9 @@ const MaintenanceDSL = ({ user }) => {
       if (filters.date_to) params.append('date_to', filters.date_to);
 
       const [reqRes, typeRes, eqRes] = await Promise.all([
-        axios.get(`http://localhost:8080/api/maintenance/requests?${params.toString()}`),
-        axios.get('http://localhost:8080/api/maintenance/types'),
-        axios.get('http://localhost:8080/api/equipements')
+        axios.get(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/maintenance/requests?${params.toString()}`),
+        axios.get('https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/maintenance/types'),
+        axios.get('https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/equipements')
       ]);
       setRequests(reqRes.data);
       setMaintenanceTypes(typeRes.data);
@@ -73,7 +73,7 @@ const MaintenanceDSL = ({ user }) => {
       
       try {
         const { data } = await axios.get(
-          `http://localhost:8080/api/equipements/${formData.code_prestation}/availability?date_debut=${formData.date_debut}&date_fin=${formData.date_fin}`
+          `https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/equipements/${formData.code_prestation}/availability?date_debut=${formData.date_debut}&date_fin=${formData.date_fin}`
         );
         setAvailability(data);
       } catch (err) {
@@ -93,7 +93,7 @@ const MaintenanceDSL = ({ user }) => {
     }
 
     try {
-      await axios.post('http://localhost:8080/api/maintenance/requests', {
+      await axios.post('https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/maintenance/requests', {
         ...formData,
         demandeur_matricule: user.matricule,
         demandeur_structure: user.structure
@@ -108,7 +108,7 @@ const MaintenanceDSL = ({ user }) => {
         description: ''
       });
       // Refresh the list
-      const { data } = await axios.get(`http://localhost:8080/api/maintenance/requests?matricule=${user.matricule}&structure=${user.structure}&role=${user.role}`);
+      const { data } = await axios.get(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/maintenance/requests?matricule=${user.matricule}&structure=${user.structure}&role=${user.role}`);
       setRequests(data);
     } catch (err) {
       setError(err.response?.data?.error || 'Erreur lors de la création');

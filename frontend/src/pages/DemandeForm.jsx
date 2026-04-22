@@ -34,19 +34,19 @@ const DemandeForm = ({ user }) => {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      axios.get(`http://localhost:8080/api/equipements?search=${engineSearch}`).then(res => setEquipements(res.data));
+      axios.get(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/equipements?search=${engineSearch}`).then(res => setEquipements(res.data));
     }, 300);
     return () => clearTimeout(timer);
   }, [engineSearch]);
 
   useEffect(() => {
     if (user.role === 'secretaire' && user.structure === 'DSL' && formData.demandeur_structure) {
-      axios.get(`http://localhost:8080/api/employees?structure=${formData.demandeur_structure}`).then(res => {
+      axios.get(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/employees?structure=${formData.demandeur_structure}`).then(res => {
         setEmployees(res.data.filter(e => e.role !== 'chef departement'));
         setChefs(res.data.filter(e => e.role === 'chef departement'));
       });
     } else if (user.role === 'secretaire' && user.structure !== 'DSL') {
-      axios.get(`http://localhost:8080/api/employees?structure=${user.structure}`).then(res => setEmployees(res.data.filter(e => e.role !== 'chef departement')));
+      axios.get(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/employees?structure=${user.structure}`).then(res => setEmployees(res.data.filter(e => e.role !== 'chef departement')));
     }
   }, [user, formData.demandeur_structure]);
 
@@ -55,7 +55,7 @@ const DemandeForm = ({ user }) => {
     if (formData.code_affaire.length === 7) {
       setLoadingAffaire(true);
       setAffaireError('');
-      axios.get(`http://localhost:8080/api/affaires_structures/${formData.code_affaire}`)
+      axios.get(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/affaires_structures/${formData.code_affaire}`)
         .then(({ data }) => {
           setAffaireInfo({
             client: data.client,
@@ -133,7 +133,7 @@ const DemandeForm = ({ user }) => {
       .join('\n');
 
     try {
-      const res = await axios.post('http://localhost:8080/api/demandes', {
+      const res = await axios.post('https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/demandes', {
         ...formData,
         observation: joinedObservations,
         structure: user.struc_code || 'GEN',

@@ -27,7 +27,7 @@ const Dashboard = ({ user }) => {
         structure: user.structure,
       });
   
-      const { data } = await axios.get(`http://localhost:8080/api/demandes?${params.toString()}`);
+      const { data } = await axios.get(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/demandes?${params.toString()}`);
       setDemandes(data);
     } catch (err) {
       console.error(err);
@@ -36,7 +36,7 @@ const Dashboard = ({ user }) => {
 
   const fetchNotifications = async () => {
     try {
-      const { data } = await axios.get(`http://localhost:8080/api/notifications?matricule=${user.matricule}&role=${user.role}&structure=${user.structure}`);
+      const { data } = await axios.get(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/notifications?matricule=${user.matricule}&role=${user.role}&structure=${user.structure}`);
       setNotifications(data);
     } catch (err) {
       console.error(err);
@@ -45,7 +45,7 @@ const Dashboard = ({ user }) => {
 
   const fetchMaintenance = async () => {
     try {
-      const { data } = await axios.get(`http://localhost:8080/api/maintenance/requests`);
+      const { data } = await axios.get(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/maintenance/requests`);
       setMaintenanceRequests(data.slice(0, 5)); // Get last 5
     } catch (err) {
       console.error(err);

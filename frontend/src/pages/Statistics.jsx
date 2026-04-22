@@ -18,8 +18,8 @@ const Statistics = ({ user }) => {
       });
 
       const [demandesRes, maintenanceRes] = await Promise.all([
-        axios.get(`http://localhost:8080/api/demandes?${params.toString()}`),
-        axios.get('http://localhost:8080/api/maintenance/requests')
+        axios.get(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/demandes?${params.toString()}`),
+        axios.get('https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/maintenance/requests')
       ]);
 
       setDemandes(demandesRes.data);

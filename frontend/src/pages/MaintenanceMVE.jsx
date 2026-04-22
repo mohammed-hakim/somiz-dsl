@@ -31,7 +31,7 @@ const MaintenanceMVE = ({ user }) => {
       if (filters.date_to) params.append('date_to', filters.date_to);
       
       const { data } = await axios.get(
-        `http://localhost:8080/api/maintenance/requests?${params.toString()}`
+        `https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/maintenance/requests?${params.toString()}`
       );
       setRequests(data);
       
@@ -59,7 +59,7 @@ const MaintenanceMVE = ({ user }) => {
   const handleValider = async (requestId) => {
     try {
       setError('');
-      await axios.post(`http://localhost:8080/api/maintenance/requests/${requestId}/valider`, {
+      await axios.post(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/maintenance/requests/${requestId}/valider`, {
         matricule: user.matricule
       });
       loadRequests();
@@ -82,7 +82,7 @@ const MaintenanceMVE = ({ user }) => {
     }
     
     try {
-      await axios.post(`http://localhost:8080/api/maintenance/requests/${selectedRequest.id}/rejeter`, {
+      await axios.post(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/maintenance/requests/${selectedRequest.id}/rejeter`, {
         matricule: user.matricule,
         motif: motifRejet
       });
@@ -96,7 +96,7 @@ const MaintenanceMVE = ({ user }) => {
 
   const handleTerminer = async (requestId) => {
     try {
-      await axios.post(`http://localhost:8080/api/maintenance/requests/${requestId}/terminer`, {
+      await axios.post(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/maintenance/requests/${requestId}/terminer`, {
         matricule: user.matricule
       });
       loadRequests();
