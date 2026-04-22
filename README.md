@@ -13,7 +13,7 @@
 
 
 ### Backend
-+ go to backend-s for sqlite or backend-m for sql server express
++ backend-s
 + py -m venv venv
 + source venv/Scripts/Activate
 + pip install -r ./requirements.txt 
