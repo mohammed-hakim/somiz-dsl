@@ -1,16 +1,14 @@
 from flask import Blueprint, jsonify
 from db.connection import get_db_connection
-from datetime import datetime
+from utils.date import format_date
+from utils.auth_middleware import require_auth
 
 affaires_bp = Blueprint('affaires', __name__)
 
-# Helper to safely parse string/datetime from SQLite
-def format_date(d, fmt="%Y-%m-%d"):
-    if not d: return None
-    if isinstance(d, str): return d[:10]
-    return d.strftime(fmt)
+
 
 @affaires_bp.route('/api/affaires_structures/<code_affaire>', methods=['GET'])
+@require_auth
 def get_affaire_structure(code_affaire):
     if len(code_affaire) != 7:
         return jsonify({"error": "Invalid format. Exactly 7 characters required."}), 400

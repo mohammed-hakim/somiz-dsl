@@ -9,33 +9,33 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE RH (
     nom TEXT,
     prenom TEXT,
+    username TEXT UNIQUE,
     matricule TEXT PRIMARY KEY,
     NUM_CONT TEXT,
     structure TEXT,
     password TEXT DEFAULT '123456',
-    STRUC TEXT,
     role TEXT DEFAULT 'agent',
     CONSTRAINT CK_RH_Role CHECK (role IN ('agent', 'secretaire', 'chef departement', 'chef service'))
 );
 
-INSERT INTO RH (nom, prenom, matricule, NUM_CONT, structure, role)
+INSERT INTO RH (nom, prenom, username, matricule, NUM_CONT, structure, role)
 VALUES  
-    ('karim', 'isi', '010874', '021669', 'ISI', 'agent'),
-    ('mansor', 'isi', '798072', '715172', 'ISI', 'secretaire'),
-    ('zakaria2', 'isi', '048045', '031615', 'ISI', 'chef service'),
-    ('ali', 'isi', '068184', '220727', 'ISI', 'chef departement'),
-    ('chehhat', 'dsl', '010873', '021663', 'DSL', 'agent'),
-    ('jamal', 'dsl', '030870', '031860', 'DSL', 'secretaire'),
-    ('ahmed', 'dsl', '048009', '031692', 'DSL', 'chef service'),
-    ('anes', 'dsl', '010870', '021660', 'DSL', 'chef departement'),
-    ('tayeb', 'cpa', '010871', '021661', 'CPA', 'agent'),
-    ('amine', 'cpa', '039009', '031693', 'CPA', 'secretaire'),
-    ('reda', 'cpa', '039010', '031694', 'CPA', 'chef service'),
-    ('fateh', 'cpa', '010872', '021662', 'CPA', 'chef departement'),
-    ('malek', 'MVE', '010883', '021683', 'MVE', 'agent'),
-    ('ryad', 'MVE', '457890', '451536', 'MVE', 'secretaire'),
-    ('baraa', 'MVE', '457891', '451537', 'MVE', 'chef service'),
-    ('malek', 'MVE', '010894', '021664', 'MVE', 'chef departement');
+    ('karim', 'isi', 'isi.karim', '010874', '021669', 'ISI', 'agent'),
+    ('mansor', 'isi', 'isi.mansor', '798072', '715172', 'ISI', 'secretaire'),
+    ('zakaria2', 'isi', 'isi.zakaria2', '048045', '031615', 'ISI', 'chef service'),
+    ('ali', 'isi', 'isi.ali', '068184', '220727', 'ISI', 'chef departement'),
+    ('chehhat', 'dsl', 'dsl.chehhat', '010873', '021663', 'DSL', 'agent'),
+    ('jamal', 'dsl', 'dsl.jamal', '030870', '031860', 'DSL', 'secretaire'),
+    ('ahmed', 'dsl', 'dsl.ahmed', '048009', '031692', 'DSL', 'chef service'),
+    ('anes', 'dsl', 'dsl.anes', '010870', '021660', 'DSL', 'chef departement'),
+    ('tayeb', 'cpa', 'cpa.tayeb', '010871', '021661', 'CPA', 'agent'),
+    ('amine', 'cpa', 'cpa.amine', '039009', '031693', 'CPA', 'secretaire'),
+    ('reda', 'cpa', 'cpa.reda', '039010', '031694', 'CPA', 'chef service'),
+    ('fateh', 'cpa', 'cpa.fateh', '010872', '021662', 'CPA', 'chef departement'),
+    ('malek', 'MVE', 'mve.malek', '010883', '021683', 'MVE', 'agent'),
+    ('ryad', 'MVE', 'mve.ryad', '457890', '451536', 'MVE', 'secretaire'),
+    ('baraa', 'MVE', 'mve.baraa', '457891', '451537', 'MVE', 'chef service'),
+    ('malek', 'MVE', 'mve.malek2', '010894', '021664', 'MVE', 'chef departement');
 
 -- ============================================
 -- STRUCTURES TABLE
@@ -136,6 +136,7 @@ VALUES
 -- ============================================
 -- DEMANDES TABLE
 -- ============================================
+
 CREATE TABLE Demandes (
     num_demande TEXT PRIMARY KEY,
     Date_Demande TEXT DEFAULT (datetime('now')),
@@ -157,8 +158,15 @@ CREATE TABLE Demandes (
     lieu_prestation TEXT,
     demandeur_structure TEXT,
     date_cpa TEXT,
-    CONSTRAINT FK_Demandes_Affaire FOREIGN KEY (Code_Affaire) 
-        REFERENCES affaires(Code_Affaire)
+    CONSTRAINT FK_Demandes_Affaire FOREIGN KEY (Code_Affaire) REFERENCES affaires(Code_Affaire),
+    CONSTRAINT FK_Demandes_User FOREIGN KEY (utilisateur) REFERENCES RH(matricule),
+    CONSTRAINT FK_Demandes_ValDem FOREIGN KEY (validateur_demandeur) REFERENCES RH(matricule),
+    CONSTRAINT FK_Demandes_ValDSL FOREIGN KEY (validateur_dsl) REFERENCES RH(matricule),
+    CONSTRAINT CK_Demandes_Status CHECK (Status IN (
+        'En Attente', 'Validé', 'Approuvé', 'Sous Traitance',
+        'En Cours', 'Clôturé', 'Rejeté', 'Annulé'
+    ))
+
 );
 
 -- ============================================
@@ -171,7 +179,9 @@ CREATE TABLE Demande_Engins (
     CONSTRAINT FK_DemandeEngins_Demande FOREIGN KEY (num_demande) 
         REFERENCES Demandes(num_demande),
     CONSTRAINT FK_DemandeEngins_Equipement FOREIGN KEY (Code_Prestation) 
-        REFERENCES ListeEquipement("Code Prestation")
+        REFERENCES ListeEquipement("Code Prestation"),
+    CONSTRAINT UQ_DemandeEngins UNIQUE (num_demande, Code_Prestation)
+
 );
 
 -- ============================================
@@ -291,6 +301,35 @@ CREATE TABLE MaintenanceRequests (
     CONSTRAINT FK_Maintenance_Equipement FOREIGN KEY (code_prestation) 
         REFERENCES ListeEquipement("Code Prestation")
 );
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 -- ============================================

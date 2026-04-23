@@ -5,60 +5,62 @@ import { ArrowLeft, TrendingUp, FileText, Wrench, BarChart3, PieChart, Activity,
 const apiUrl = import.meta.env.VITE_API_URL;
 const Statistics = ({ user }) => {
   const navigate = useNavigate();
-  const [demandes, setDemandes] = useState([]);
-  const [maintenanceRequests, setMaintenanceRequests] = useState([]);
+  const [demandesStats, setDemandesStats] = useState({
+    total: 0, enAttente: 0, valide: 0, approuve: 0, enCours: 0,
+    cloture: 0, rejete: 0, annule: 0, sousTraitance: 0,
+  });
+  const [maintenanceStats, setMaintenanceStats] = useState({
+    total: 0, enAttente: 0, valide: 0, enCours: 0,
+    termine: 0, rejete: 0, preventif: 0, curatif: 0,
+  });
+  const [period, setPeriod] = useState('max');
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
+    setLoading(true);
     try {
-      const params = new URLSearchParams({
-        matricule: user.matricule,
-        role: user.role,
-        structure: user.structure,
-      });
+      const params = new URLSearchParams({ period });
 
       const [demandesRes, maintenanceRes] = await Promise.all([
-        axios.get(`${apiUrl}/api/demandes?${params.toString()}`),
-        axios.get(`${apiUrl}/api/maintenance/requests`)
+        axios.get(`${apiUrl}/api/demandes/stats?${params.toString()}`),
+        axios.get(`${apiUrl}/api/maintenance/stats?${params.toString()}`)
       ]);
 
-      setDemandes(demandesRes.data);
-      setMaintenanceRequests(maintenanceRes.data);
+      const ds = demandesRes.data.by_status || {};
+      setDemandesStats({
+        total: demandesRes.data.total,
+        enAttente: ds['En Attente'] || 0,
+        valide: ds['Validé'] || 0,
+        approuve: ds['Approuvé'] || 0,
+        enCours: ds['En Cours'] || 0,
+        cloture: ds['Clôturé'] || 0,
+        rejete: ds['Rejeté'] || 0,
+        annule: ds['Annulé'] || 0,
+        sousTraitance: ds['Sous Traitance'] || 0,
+      });
+
+      const ms = maintenanceRes.data.by_status || {};
+      const mc = maintenanceRes.data.by_categorie || {};
+      setMaintenanceStats({
+        total: maintenanceRes.data.total,
+        enAttente: ms['EN_ATTENTE'] || 0,
+        valide: ms['VALIDE'] || 0,
+        enCours: ms['EN_COURS'] || 0,
+        termine: ms['TERMINE'] || 0,
+        rejete: ms['REJETE'] || 0,
+        preventif: mc['Preventif'] || 0,
+        curatif: mc['Curatif'] || 0,
+      });
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [period]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-
-  // Calculate Demandes stats
-  const demandesStats = {
-    total: demandes.length,
-    enAttente: demandes.filter(d => d.status === 'En Attente').length,
-    valide: demandes.filter(d => d.status === 'Validé').length,
-    approuve: demandes.filter(d => d.status === 'Approuvé').length,
-    enCours: demandes.filter(d => d.status === 'En Cours').length,
-    cloture: demandes.filter(d => d.status === 'Clôturé').length,
-    rejete: demandes.filter(d => d.status === 'Rejeté').length,
-    annule: demandes.filter(d => d.status === 'Annulé').length,
-    sousTraitance: demandes.filter(d => d.status === 'Sous Traitance').length,
-  };
-
-  // Calculate Maintenance stats
-  const maintenanceStats = {
-    total: maintenanceRequests.length,
-    enAttente: maintenanceRequests.filter(r => r.status === 'EN_ATTENTE').length,
-    valide: maintenanceRequests.filter(r => r.status === 'VALIDE').length,
-    enCours: maintenanceRequests.filter(r => r.status === 'EN_COURS').length,
-    termine: maintenanceRequests.filter(r => r.status === 'TERMINE').length,
-    rejete: maintenanceRequests.filter(r => r.status === 'REJETE').length,
-    preventif: maintenanceRequests.filter(r => r.categorie === 'Preventif').length,
-    curatif: maintenanceRequests.filter(r => r.categorie === 'Curatif').length,
-  };
 
   // Get monthly data for charts
   const getMonthlyData = () => {
@@ -120,17 +122,36 @@ const Statistics = ({ user }) => {
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       {/* Header */}
-      <div className="mb-8">
-        <button
-          onClick={() => navigate('/')}
-          className="flex items-center gap-2 text-slate-500 hover:text-slate-700 mb-2 transition"
-        >
-          <ArrowLeft className="w-4 h-4" /> Retour
-        </button>
-        <h2 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
-          <BarChart3 className="w-6 h-6" /> Statistiques Détaillées
-        </h2>
-        <p className="text-slate-500 text-sm mt-1">Vue d'ensemble des demandes et maintenance</p>
+      <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2 text-slate-500 hover:text-slate-700 mb-2 transition"
+          >
+            <ArrowLeft className="w-4 h-4" /> Retour
+          </button>
+          <h2 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
+            <BarChart3 className="w-6 h-6" /> Statistiques Détaillées
+          </h2>
+          <p className="text-slate-500 text-sm mt-1">Vue d'ensemble des demandes et maintenance</p>
+        </div>
+        
+        {/* Filter Dropdown */}
+        <div className="flex flex-col">
+          <label className="text-xs font-medium text-slate-500 mb-1">Période d'analyse</label>
+          <select 
+            value={period}
+            onChange={(e) => setPeriod(e.target.value)}
+            className="bg-white border border-slate-300 text-slate-700 rounded-lg py-2 pl-3 pr-8 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm transition appearance-none"
+            style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem' }}
+          >
+            <option value="max">Toujours (Max)</option>
+            <option value="day">Dernier jour</option>
+            <option value="week">Dernière semaine</option>
+            <option value="month">Dernier mois</option>
+            <option value="year">Dernière année</option>
+          </select>
+        </div>
       </div>
 
       {/* Summary Cards */}

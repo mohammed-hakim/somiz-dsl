@@ -1,14 +1,11 @@
-from flask import Blueprint, request, jsonify
+from utils.date import format_date
+from flask import Blueprint, request, jsonify, g
 from db.connection import get_db_connection
-from datetime import datetime
+from utils.auth_middleware import require_auth
 
 maintenance_bp = Blueprint('maintenance', __name__)
 
-# Helper to safely parse string/datetime from SQLite
-def format_date(d, fmt="%Y-%m-%d"):
-    if not d: return None
-    if isinstance(d, str): return d[:10] if fmt == "%Y-%m-%d" else d[:16]
-    return d.strftime(fmt)
+
 
 @maintenance_bp.route('/api/maintenance/types', methods=['GET'])
 def get_maintenance_types():
@@ -19,7 +16,65 @@ def get_maintenance_types():
     conn.close()
     return jsonify([{"code": r[0], "libelle": r[1], "categorie": r[2], "description": r[3]} for r in rows])
 
+@maintenance_bp.route('/api/maintenance/stats', methods=['GET'])
+@require_auth
+def get_maintenance_stats():
+    """Return aggregated counts by status and categorie — lightweight endpoint for dashboards."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    period = request.args.get('period', 'max')
+    where_clause = ""
+    if period == 'day':
+        where_clause = " WHERE m.date_demande >= datetime('now', 'localtime', '-1 day')"
+    elif period == 'week':
+        where_clause = " WHERE m.date_demande >= datetime('now', 'localtime', '-7 days')"
+    elif period == 'month':
+        where_clause = " WHERE m.date_demande >= datetime('now', 'localtime', '-1 month')"
+    elif period == 'year':
+        where_clause = " WHERE m.date_demande >= datetime('now', 'localtime', '-1 year')"
+        
+    # Counts by status
+    cursor.execute(f"""
+        SELECT m.status, COUNT(*) as cnt
+        FROM MaintenanceRequests m
+        {where_clause}
+        GROUP BY m.status
+    """)
+    status_rows = cursor.fetchall()
+    
+    # Counts by categorie
+    cursor.execute(f"""
+        SELECT mt.categorie, COUNT(*) as cnt
+        FROM MaintenanceRequests m
+        JOIN MaintenanceTypes mt ON m.type_maintenance = mt.code
+        {where_clause}
+        GROUP BY mt.categorie
+    """)
+    cat_rows = cursor.fetchall()
+    
+    # Total
+    cursor.execute(f"SELECT COUNT(*) FROM MaintenanceRequests m {where_clause}")
+    total = cursor.fetchone()[0]
+    
+    conn.close()
+    
+    by_status = {}
+    for r in status_rows:
+        by_status[r[0]] = r[1]
+    
+    by_categorie = {}
+    for r in cat_rows:
+        by_categorie[r[0]] = r[1]
+    
+    return jsonify({
+        "total": total,
+        "by_status": by_status,
+        "by_categorie": by_categorie
+    })
+
 @maintenance_bp.route('/api/maintenance/requests', methods=['GET'])
+@require_auth
 def get_maintenance_requests():
     status_filter = request.args.get("status")
     structure_filter = request.args.get("structure_filter")
@@ -27,6 +82,12 @@ def get_maintenance_requests():
     categorie_filter = request.args.get("categorie")
     date_from = request.args.get("date_from")
     date_to = request.args.get("date_to")
+    
+    # Pagination params
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 10, type=int)
+    per_page = min(per_page, 100)
+    offset = (page - 1) * per_page
     
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -55,8 +116,19 @@ def get_maintenance_requests():
     
     where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
     
+    from_clause = """
+        FROM MaintenanceRequests m
+        JOIN MaintenanceTypes mt ON m.type_maintenance = mt.code
+        JOIN ListeEquipement eq ON m.code_prestation = eq."Code Prestation"
+        LEFT JOIN RH rh ON m.demandeur_matricule = rh.matricule
+    """
     
+    # Count total
+    count_q = "SELECT COUNT(*) " + from_clause + where_sql
+    cursor.execute(count_q, params)
+    total = cursor.fetchone()[0]
     
+    # Fetch paginated data
     query = f"""
         SELECT m.id, m.code_prestation, eq.Prestation as equipement,
                m.type_maintenance, mt.libelle as type_libelle, mt.categorie,
@@ -64,15 +136,13 @@ def get_maintenance_requests():
                m.description, m.status,
                m.demandeur_matricule, rh.nom, rh.prenom, m.demandeur_structure,
                m.date_demande, m.validateur_matricule, m.date_validation
-        FROM MaintenanceRequests m
-        JOIN MaintenanceTypes mt ON m.type_maintenance = mt.code
-        JOIN ListeEquipement eq ON m.code_prestation = eq."Code Prestation"
-        LEFT JOIN RH rh ON m.demandeur_matricule = rh.matricule
+        {from_clause}
         {where_sql}
         ORDER BY m.date_demande DESC
+        LIMIT ? OFFSET ?
     """
     
-    cursor.execute(query, params)
+    cursor.execute(query, params + [per_page, offset])
     rows = cursor.fetchall()
     conn.close()
 
@@ -98,9 +168,17 @@ def get_maintenance_requests():
             "date_validation": format_date(r[17], "%Y-%m-%d %H:%M")
         })
     
-    return jsonify(results)
+    total_pages = (total + per_page - 1) // per_page if total > 0 else 1
+    return jsonify({
+        "data": results,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "total_pages": total_pages
+    })
 
 @maintenance_bp.route('/api/maintenance/requests', methods=['POST'])
+@require_auth
 def create_maintenance_request():
     data = request.json
     
@@ -119,8 +197,8 @@ def create_maintenance_request():
         data.get('date_fin'),
         data.get('kilometrage_actuel') or None,
         data.get('description'),
-        data.get('demandeur_matricule'),
-        data.get('demandeur_structure')
+        g.user['matricule'],
+        g.user['structure']
     ))
     
     request_id = cursor.lastrowid
@@ -130,9 +208,9 @@ def create_maintenance_request():
     return jsonify({"message": "Demande de maintenance créée", "id": request_id}), 201
 
 @maintenance_bp.route('/api/maintenance/requests/<int:request_id>/valider', methods=['POST'])
+@require_auth
 def valider_maintenance_request(request_id):
-    data = request.json
-    matricule = data.get('matricule')
+    matricule = g.user['matricule']
     
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -158,9 +236,10 @@ def valider_maintenance_request(request_id):
     return jsonify({"message": "Maintenance validée avec succès"})
 
 @maintenance_bp.route('/api/maintenance/requests/<int:request_id>/rejeter', methods=['POST'])
+@require_auth
 def rejeter_maintenance_request(request_id):
     data = request.json
-    matricule = data.get('matricule')
+    matricule = g.user['matricule']
     motif = data.get('motif', '').strip()
     
     if not motif:
@@ -187,9 +266,9 @@ def rejeter_maintenance_request(request_id):
     return jsonify({"message": "Maintenance rejetée"})
 
 @maintenance_bp.route('/api/maintenance/requests/<int:request_id>/terminer', methods=['POST'])
+@require_auth
 def terminer_maintenance_request(request_id):
-    data = request.json
-    matricule = data.get('matricule')
+    matricule = g.user['matricule']
     
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -215,6 +294,7 @@ def terminer_maintenance_request(request_id):
     return jsonify({"message": "Maintenance terminée avec succès"})
 
 @maintenance_bp.route('/api/maintenance/rules', methods=['GET'])
+@require_auth
 def get_maintenance_rules():
     code_prestation = request.args.get('code_prestation')
     
@@ -262,6 +342,7 @@ def get_maintenance_rules():
     } for r in rows])
 
 @maintenance_bp.route('/api/maintenance/rules', methods=['POST'])
+@require_auth
 def create_maintenance_rule():
     data = request.json
     

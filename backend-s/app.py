@@ -13,7 +13,8 @@ from routes.notifications import notifications_bp
 
 
 app = Flask(__name__)
-CORS(app)
+# Enable CORS for all domains, specifically allowing the Authorization header
+CORS(app, resources={r"/api/*": {"origins": "*", "allow_headers": ["Content-Type", "Authorization"]}})
 
 
 init_database()

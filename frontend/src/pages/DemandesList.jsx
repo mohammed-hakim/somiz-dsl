@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { FileText, ChevronRight, Filter, X, Search, ArrowLeft, Plus } from 'lucide-react';
+import { FileText, ChevronRight, ChevronLeft, Filter, X, Search, ArrowLeft, Plus } from 'lucide-react';
 const apiUrl = import.meta.env.VITE_API_URL;
 
 const STATUS_OPTIONS = [
@@ -32,6 +32,10 @@ const getStatusStyle = (status) => {
 const DemandesList = ({ user }) => {
   const [demandes, setDemandes] = useState([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const perPage = 10;
   const navigate = useNavigate();
 
   // Filter state
@@ -50,6 +54,8 @@ const DemandesList = ({ user }) => {
         matricule: user.matricule,
         role: user.role,
         structure: user.structure,
+        page: page.toString(),
+        per_page: perPage.toString(),
       });
       if (filters.status) params.append('status', filters.status);
       if (filters.date_from) params.append('date_from', filters.date_from);
@@ -57,19 +63,29 @@ const DemandesList = ({ user }) => {
       if (filters.structureSearch) params.append('structure_search', filters.structureSearch);
 
       const { data } = await axios.get(`${apiUrl}/api/demandes?${params.toString()}`);
-      setDemandes(data);
+      setDemandes(data.data);
+      setTotal(data.total);
+      setTotalPages(data.total_pages);
     } catch (err) {
       console.error(err);
     }
-  }, [user, filters]);
+  }, [user, filters, page]);
 
   useEffect(() => {
     fetchDemandes();
   }, [fetchDemandes]);
 
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [filters]);
+
   const clearFilters = () => {
     setFilters({ status: '', date_from: '', date_to: '', structureSearch: '' });
   };
+
+  const startItem = (page - 1) * perPage + 1;
+  const endItem = Math.min(page * perPage, total);
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
@@ -92,7 +108,7 @@ const DemandesList = ({ user }) => {
             <Plus className="w-5 h-5" /> Nouvelle Demande
           </button>
         </div>
-        <p className="text-slate-500 text-sm mt-1">{demandes.length} demande{demandes.length !== 1 ? 's' : ''}</p>
+        <p className="text-slate-500 text-sm mt-1">{total} demande{total !== 1 ? 's' : ''}</p>
       </div>
 
       {/* Filter Bar */}
@@ -132,7 +148,7 @@ const DemandesList = ({ user }) => {
 
               {/* Date From */}
               <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Date du</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Début prestation (du)</label>
                 <input
                   type="date"
                   value={filters.date_from}
@@ -143,7 +159,7 @@ const DemandesList = ({ user }) => {
 
               {/* Date To */}
               <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Date au</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Fin prestation (au)</label>
                 <input
                   type="date"
                   value={filters.date_to}
@@ -171,7 +187,7 @@ const DemandesList = ({ user }) => {
             {hasActiveFilters && (
               <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
                 <p className="text-xs text-slate-500">
-                  {demandes.length} résultat{demandes.length !== 1 ? 's' : ''} trouvé{demandes.length !== 1 ? 's' : ''}
+                  {total} résultat{total !== 1 ? 's' : ''} trouvé{total !== 1 ? 's' : ''}
                 </p>
                 <button
                   onClick={clearFilters}
@@ -222,6 +238,55 @@ const DemandesList = ({ user }) => {
           )}
         </ul>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="mt-6 flex items-center justify-between">
+          <p className="text-sm text-slate-500">
+            Affichage {startItem}–{endItem} sur {total}
+          </p>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .reduce((acc, p, idx, arr) => {
+                if (idx > 0 && p - arr[idx - 1] > 1) acc.push('...');
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, idx) =>
+                p === '...' ? (
+                  <span key={`ellipsis-${idx}`} className="px-2 text-slate-400">…</span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    className={`w-9 h-9 rounded-lg text-sm font-medium transition ${
+                      p === page
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                )
+              )}
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

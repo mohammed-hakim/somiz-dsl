@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { Wrench, Calendar, CheckCircle, XCircle, Clock, AlertTriangle, User, Gauge, Filter, Search, ArrowLeft } from 'lucide-react';
+import { Wrench, Calendar, CheckCircle, XCircle, Clock, AlertTriangle, User, Gauge, Filter, Search, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 const apiUrl = import.meta.env.VITE_API_URL;
 const MaintenanceMVE = ({ user }) => {
   const navigate = useNavigate();
@@ -10,6 +10,10 @@ const MaintenanceMVE = ({ user }) => {
   const [motifRejet, setMotifRejet] = useState('');
   const [showRejetModal, setShowRejetModal] = useState(false);
   const [error, setError] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const perPage = 10;
 
   // Filters
   const [filters, setFilters] = useState({
@@ -24,6 +28,8 @@ const MaintenanceMVE = ({ user }) => {
   const loadRequests = async () => {
     try {
       const params = new URLSearchParams();
+      params.append('page', page.toString());
+      params.append('per_page', perPage.toString());
       if (filters.status) params.append('status', filters.status);
       if (filters.structure_filter) params.append('structure_filter', filters.structure_filter);
       if (filters.categorie) params.append('categorie', filters.categorie);
@@ -33,10 +39,12 @@ const MaintenanceMVE = ({ user }) => {
       const { data } = await axios.get(
         `${apiUrl}/api/maintenance/requests?${params.toString()}`
       );
-      setRequests(data);
+      setRequests(data.data);
+      setTotal(data.total);
+      setTotalPages(data.total_pages);
 
       // Extract unique structures for filter dropdown
-      const uniqueStructures = [...new Set(data.map(r => r.demandeur_structure).filter(Boolean))];
+      const uniqueStructures = [...new Set(data.data.map(r => r.demandeur_structure).filter(Boolean))];
       setStructures(uniqueStructures);
     } catch (err) {
       console.error(err);
@@ -54,7 +62,12 @@ const MaintenanceMVE = ({ user }) => {
   useEffect(() => {
     loadRequests();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user.matricule, user.structure, user.role, filters]);
+  }, [user.matricule, user.structure, user.role, filters, page]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [filters]);
 
   const handleValider = async (requestId) => {
     try {
@@ -359,6 +372,55 @@ const MaintenanceMVE = ({ user }) => {
                 <p className="text-xs text-slate-400 mt-1">Du {r.date_debut} au {r.date_fin}</p>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="mt-6 flex items-center justify-between">
+          <p className="text-sm text-slate-500">
+            Affichage {(page - 1) * perPage + 1}–{Math.min(page * perPage, total)} sur {total}
+          </p>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .reduce((acc, p, idx, arr) => {
+                if (idx > 0 && p - arr[idx - 1] > 1) acc.push('...');
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, idx) =>
+                p === '...' ? (
+                  <span key={`ellipsis-${idx}`} className="px-2 text-slate-400">…</span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    className={`w-9 h-9 rounded-lg text-sm font-medium transition ${
+                      p === page
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                )
+              )}
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
         </div>
       )}

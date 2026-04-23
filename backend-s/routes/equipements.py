@@ -1,11 +1,12 @@
 import sqlite3
 from flask import Blueprint, request, jsonify
 from db.connection import get_db_connection
-
+from utils.auth_middleware import require_auth
 
 equipements_bp = Blueprint('equipements', __name__)
 
 @equipements_bp.route('/api/equipements', methods=['GET'])
+@require_auth
 def get_equipements():
     search = request.args.get('search', '')
     conn = get_db_connection()
@@ -27,6 +28,7 @@ def get_equipements():
 
 
 @equipements_bp.route('/api/equipements/<code_prestation>/availability', methods=['GET'])
+@require_auth
 def check_equipment_availability(code_prestation):
     date_debut = request.args.get('date_debut')
     date_fin = request.args.get('date_fin')

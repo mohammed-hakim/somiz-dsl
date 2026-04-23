@@ -5,7 +5,7 @@ import { LogIn } from 'lucide-react';
 const apiUrl = import.meta.env.VITE_API_URL;
 
 const Login = ({ setUser }) => {
-  const [matricule, setMatricule] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -13,13 +13,19 @@ const Login = ({ setUser }) => {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const { data } = await axios.post(`${apiUrl}/api/login`, { matricule, password });
-      localStorage.setItem('user', JSON.stringify(data));
-      setUser(data);
+      const { data } = await axios.post(`${apiUrl}/api/login`, { username, password });
+      // data contains { token: string, user: object }
+      const sessionData = { ...data.user, token: data.token };
+      localStorage.setItem('user', JSON.stringify(sessionData));
+      setUser(sessionData);
       navigate('/');
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed');
     }
+  };
+  const fillDemo = (user) => {
+    setUsername(user);
+    setPassword('123456');
   };
 
   return (
@@ -37,13 +43,13 @@ const Login = ({ setUser }) => {
 
           <form onSubmit={handleLogin} className="space-y-6">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Matricule</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Nom d'utilisateur</label>
               <input
                 type="text"
-                value={matricule}
-                onChange={(e) => setMatricule(e.target.value)}
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 className="w-full px-4 py-3 rounded-lg border border-slate-200 bg-white/50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none"
-                placeholder="123456"
+                placeholder="prenom.nom"
                 required
               />
             </div>
@@ -70,6 +76,74 @@ const Login = ({ setUser }) => {
               Se Connecter
             </button>
           </form>
+          <div className="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600">
+            <p className="font-semibold text-slate-700 mb-2">Comptes de test</p>
+
+            <p className="mb-2">
+              🔐 <span className="font-medium">Mot de passe :</span> 123456
+            </p>
+
+            <p className="mb-4">
+              👤 <span className="font-medium">Username :</span> prenom.nom
+            </p>
+
+            {/* ISI */}
+            <div className="mb-3">
+              <p className="text-[11px] font-semibold text-slate-500 mb-1">ISI</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                <button type="button" onClick={() => fillDemo('isi.karim')} className="text-left hover:text-blue-600">isi.karim</button>
+                <span className="text-slate-400">agent</span>
+
+                <button type="button" onClick={() => fillDemo('isi.mansor')} className="text-left hover:text-blue-600">isi.mansor</button>
+                <span className="text-slate-400">secretaire</span>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-200 my-2"></div>
+
+            {/* DSL */}
+            <div className="mb-3">
+              <p className="text-[11px] font-semibold text-slate-500 mb-1">DSL</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                <button type="button" onClick={() => fillDemo('isi.zakaria')} className="text-left hover:text-blue-600">isi.zakaria</button>
+                <span className="text-slate-400">chef service</span>
+
+                <button type="button" onClick={() => fillDemo('dsl.jamal')} className="text-left hover:text-blue-600">dsl.jamal</button>
+                <span className="text-slate-400">secretaire</span>
+
+                <button type="button" onClick={() => fillDemo('dsl.ahmed')} className="text-left hover:text-blue-600">dsl.ahmed</button>
+                <span className="text-slate-400">chef service</span>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-200 my-2"></div>
+
+            {/* CPA */}
+            <div className="mb-3">
+              <p className="text-[11px] font-semibold text-slate-500 mb-1">CPA</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                <button type="button" onClick={() => fillDemo('cpa.amine')} className="text-left hover:text-blue-600">cpa.amine</button>
+                <span className="text-slate-400">secretaire</span>
+
+                <button type="button" onClick={() => fillDemo('cpa.reda')} className="text-left hover:text-blue-600">cpa.reda</button>
+                <span className="text-slate-400">chef service</span>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-200 my-2"></div>
+
+            {/* MVE */}
+            <div>
+              <p className="text-[11px] font-semibold text-slate-500 mb-1">MVE</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                <button type="button" onClick={() => fillDemo('mve.ryad')} className="text-left hover:text-blue-600">mve.ryad</button>
+                <span className="text-slate-400">secretaire</span>
+
+                <button type="button" onClick={() => fillDemo('mve.baraa')} className="text-left hover:text-blue-600">mve.baraa</button>
+                <span className="text-slate-400">chef service</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

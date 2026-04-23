@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { Wrench, Calendar, Plus, CheckCircle, XCircle, Clock, AlertTriangle, Gauge, Filter, ArrowLeft } from 'lucide-react';
+import { Wrench, Calendar, Plus, CheckCircle, XCircle, Clock, AlertTriangle, Gauge, Filter, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 const apiUrl = import.meta.env.VITE_API_URL;
 
 const MaintenanceDSL = ({ user }) => {
@@ -9,6 +9,10 @@ const MaintenanceDSL = ({ user }) => {
   const [requests, setRequests] = useState([]);
   const [maintenanceTypes, setMaintenanceTypes] = useState([]);
   const [equipements, setEquipements] = useState([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const perPage = 10;
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     code_prestation: '',
@@ -34,6 +38,8 @@ const MaintenanceDSL = ({ user }) => {
   const loadData = async () => {
     try {
       const params = new URLSearchParams();
+      params.append('page', page.toString());
+      params.append('per_page', perPage.toString());
       if (filters.status) params.append('status', filters.status);
       if (filters.categorie) params.append('categorie', filters.categorie);
       if (filters.type) params.append('type', filters.type);
@@ -45,7 +51,9 @@ const MaintenanceDSL = ({ user }) => {
         axios.get(`${apiUrl}/api/maintenance/types`),
         axios.get(`${apiUrl}/api/equipements`)
       ]);
-      setRequests(reqRes.data);
+      setRequests(reqRes.data.data);
+      setTotal(reqRes.data.total);
+      setTotalPages(reqRes.data.total_pages);
       setMaintenanceTypes(typeRes.data);
       setEquipements(eqRes.data);
     } catch (err) {
@@ -56,7 +64,12 @@ const MaintenanceDSL = ({ user }) => {
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user.matricule, user.structure, user.role, filters]);
+  }, [user.matricule, user.structure, user.role, filters, page]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [filters]);
 
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -109,8 +122,12 @@ const MaintenanceDSL = ({ user }) => {
         description: ''
       });
       // Refresh the list
-      const { data } = await axios.get(`${apiUrl}/api/maintenance/requests?matricule=${user.matricule}&structure=${user.structure}&role=${user.role}`);
-      setRequests(data);
+      const refreshParams = new URLSearchParams({ page: '1', per_page: perPage.toString() });
+      const { data } = await axios.get(`${apiUrl}/api/maintenance/requests?${refreshParams.toString()}`);
+      setRequests(data.data);
+      setTotal(data.total);
+      setTotalPages(data.total_pages);
+      setPage(1);
     } catch (err) {
       setError(err.response?.data?.error || 'Erreur lors de la création');
     }
@@ -395,6 +412,55 @@ const MaintenanceDSL = ({ user }) => {
           </div>
         )}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="mt-6 flex items-center justify-between">
+          <p className="text-sm text-slate-500">
+            Affichage {(page - 1) * perPage + 1}–{Math.min(page * perPage, total)} sur {total}
+          </p>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .reduce((acc, p, idx, arr) => {
+                if (idx > 0 && p - arr[idx - 1] > 1) acc.push('...');
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, idx) =>
+                p === '...' ? (
+                  <span key={`ellipsis-${idx}`} className="px-2 text-slate-400">…</span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    className={`w-9 h-9 rounded-lg text-sm font-medium transition ${
+                      p === page
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                )
+              )}
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

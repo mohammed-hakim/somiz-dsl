@@ -1,7 +1,8 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, g
 from db.connection import get_db_connection
 from utils.logger import log_transaction
 from datetime import datetime
+from utils.auth_middleware import require_auth
 
 notifications_bp = Blueprint('notifications', __name__)
 
@@ -18,10 +19,11 @@ def parse_date(date_val):
     return date_val
 
 @notifications_bp.route('/api/notifications', methods=['GET'])
+@require_auth
 def get_notifications():
-    matricule = request.args.get("matricule")
-    role = request.args.get("role")
-    structure = request.args.get("structure")
+    matricule = g.user['matricule']
+    role = g.user['role']
+    structure = g.user['structure']
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -43,16 +45,15 @@ def get_notifications():
     params = []
 
     # Role-based visibility
-    if role == 'agent':
+    if structure == 'DSL':
+        q += " AND v.date_validation_demandeur IS NOT NULL"
+    elif structure == 'CPA':
+        q += " AND (v.Status = 'Sous Traitance' OR EXISTS (SELECT 1 FROM Journal j WHERE j.CODE_PIECE = v.num_demande AND j.TYPE_OPERATION LIKE '%CPA%'))"
+        q += " AND v.date_validation_demandeur IS NOT NULL"
+    elif role == 'agent':
         q += " AND v.utilisateur = ?"
         params.append(matricule)
-    elif structure == 'DSL' and role == 'secretaire':
-        q += " AND v.Status IN ('Validé', 'Approuvé', 'En Cours')"
-    elif structure == 'CPA' and role == 'secretaire':
-        q += " AND v.Status IN ('Sous Traitance')"
-    elif role == 'chef service':
-        pass
-    elif role in ('chef departement', 'secretaire'):
+    else:
         q += " AND v.demandeur_structure = ?"
         params.append(structure)
 
@@ -101,16 +102,14 @@ def get_notifications():
     params_end = []
     
     # Role-based visibility for end notifications
-    if role == 'agent':
+    if structure == 'DSL':
+        pass # DSL sees all En Cours requests across structures
+    elif structure == 'CPA':
+        q_end += " AND (v.Status = 'Sous Traitance' OR EXISTS (SELECT 1 FROM Journal j WHERE j.CODE_PIECE = v.num_demande AND j.TYPE_OPERATION LIKE '%CPA%'))"
+    elif role == 'agent':
         q_end += " AND v.utilisateur = ?"
         params_end.append(matricule)
-    elif structure == 'DSL' and role == 'secretaire':
-        q_end += " AND v.demandeur_structure = 'DSL'"
-    elif structure == 'CPA' and role == 'secretaire':
-        q_end += " AND v.demandeur_structure = 'CPA'"
-    elif role == 'chef service':
-        pass
-    elif role in ('chef departement', 'secretaire'):
+    else:
         q_end += " AND v.demandeur_structure = ?"
         params_end.append(structure)
     

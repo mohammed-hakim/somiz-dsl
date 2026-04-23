@@ -8,13 +8,14 @@ def init_database():
     
     # Check if database exists and has tables
     db_exists = os.path.exists(db_path)
-    
+    print(db_exists)
     if db_exists:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
         tables = cursor.fetchall()
+        print(tables)
         conn.close()
         
         if len(tables) > 0:
@@ -60,6 +61,21 @@ def init_database():
     except Exception as e:
         print(f"Error initializing database: {e}")
     finally:
+        try:
+            from werkzeug.security import generate_password_hash
+            cursor = conn.cursor()
+            cursor.execute("SELECT matricule, password FROM RH")
+            users = cursor.fetchall()
+            for matricule, pwd in users:
+                # Basic check so we don't rehash already hashed passwords (e.g. if script ran twice manually somehow)
+                if not pwd.startswith('scrypt:'):
+                    hashed = generate_password_hash(pwd)
+                    cursor.execute("UPDATE RH SET password = ? WHERE matricule = ?", (hashed, matricule))
+            conn.commit()
+            print("Passwords hashed successfully.")
+        except Exception as hash_error:
+            print(f"Error hashing passwords: {hash_error}")
+        
         conn.close()
 
 

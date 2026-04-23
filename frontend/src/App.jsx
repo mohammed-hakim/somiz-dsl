@@ -12,6 +12,36 @@ import MaintenanceDSL from './pages/MaintenanceDSL';
 import MaintenanceMVE from './pages/MaintenanceMVE';
 const apiUrl = import.meta.env.VITE_API_URL;
 
+axios.interceptors.request.use((config) => {
+  const saved = localStorage.getItem('user');
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      if (parsed && parsed.token) {
+        config.headers = config.headers || {};
+        config.headers.Authorization = `Bearer ${parsed.token}`;
+      }
+    } catch (e) {
+      console.error("Interceptor parse error", e);
+    }
+  }
+  return config;
+});
+
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Exclude the login route itself so the Login component can show the error instead of infinite reloading
+    if (error.response && error.response.status === 401) {
+      if (error.config && !error.config.url.includes('/api/login')) {
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 const Navbar = ({ user, setUser }) => {
   const [notifCount, setNotifCount] = useState(0);
   const navigate = useNavigate();
@@ -19,7 +49,7 @@ const Navbar = ({ user, setUser }) => {
   useEffect(() => {
     const fetchCount = async () => {
       try {
-        const { data } = await axios.get(`${apiUrl}/api/notifications?matricule=${user.matricule}&role=${user.role}&structure=${user.structure}`);
+        const { data } = await axios.get(`${apiUrl}/api/notifications`);
         setNotifCount(data.length);
       } catch { /* silent */ }
     };

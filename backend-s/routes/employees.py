@@ -1,10 +1,12 @@
 import sqlite3
 from flask import Blueprint, request, jsonify
 from db.connection import get_db_connection
+from utils.auth_middleware import require_auth
 
 employees_bp = Blueprint('employees', __name__)
 
 @employees_bp.route('/api/employees', methods=['GET'])
+@require_auth
 def get_employees():
     structure = request.args.get('structure')
     
