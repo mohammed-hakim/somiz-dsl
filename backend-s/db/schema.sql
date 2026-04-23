@@ -292,64 +292,6 @@ CREATE TABLE MaintenanceRequests (
         REFERENCES ListeEquipement("Code Prestation")
 );
 
--- Table: EquipmentMobilization
-CREATE TABLE EquipmentMobilization (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    code_prestation TEXT NOT NULL,
-    num_demande TEXT NOT NULL,
-    type_operation TEXT NOT NULL CHECK (type_operation IN ('MOBILISATION', 'DEMOBILISATION')),
-    date_operation TEXT DEFAULT (datetime('now')),
-    matricule_operateur TEXT NOT NULL,
-    structure_operateur TEXT NOT NULL,
-    observation TEXT,
-    CONSTRAINT FK_Mobilization_Demande FOREIGN KEY (num_demande) 
-        REFERENCES Demandes(num_demande),
-    CONSTRAINT FK_Mobilization_Equipement FOREIGN KEY (code_prestation) 
-        REFERENCES ListeEquipement("Code Prestation")
-);
-
--- Table: EquipmentKilometrage
-CREATE TABLE EquipmentKilometrage (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    code_prestation TEXT NOT NULL,
-    date_enregistrement TEXT DEFAULT (datetime('now')),
-    kilometrage INTEGER NOT NULL CHECK (kilometrage >= 0),
-    source TEXT NOT NULL CHECK (source IN ('MOBILISATION', 'DEMOBILISATION', 'MAINTENANCE', 'MANUEL', 'RULE_CHECK')),
-    reference_id INTEGER,
-    matricule_operateur TEXT NOT NULL,
-    observation TEXT,
-    CONSTRAINT FK_Kilometrage_Equipement FOREIGN KEY (code_prestation) 
-        REFERENCES ListeEquipement("Code Prestation")
-);
-
--- Table: EquipmentMaintenanceLog
-CREATE TABLE EquipmentMaintenanceLog (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    code_prestation TEXT NOT NULL,
-    type_maintenance TEXT NOT NULL,
-    last_done_date TEXT NOT NULL,
-    last_done_km INTEGER NOT NULL,
-    maintenance_request_id INTEGER,
-    CONSTRAINT FK_Log_Equipement FOREIGN KEY (code_prestation) 
-        REFERENCES ListeEquipement("Code Prestation"),
-    CONSTRAINT FK_Log_Type FOREIGN KEY (type_maintenance) 
-        REFERENCES MaintenanceTypes(code),
-    CONSTRAINT FK_Log_Request FOREIGN KEY (maintenance_request_id) 
-        REFERENCES MaintenanceRequests(id) ON DELETE SET NULL,
-    CONSTRAINT UQ_Log_Equipement_Type UNIQUE (code_prestation, type_maintenance)
-);
-
--- Table: MaintenanceEquipment
-CREATE TABLE MaintenanceEquipment (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    maintenance_request_id INTEGER NOT NULL,
-    code_prestation TEXT NOT NULL,
-    kilometrage_actuel INTEGER,
-    CONSTRAINT FK_MaintenanceEquip_Request FOREIGN KEY (maintenance_request_id) 
-        REFERENCES MaintenanceRequests(id) ON DELETE CASCADE,
-    CONSTRAINT FK_MaintenanceEquip_Equipement FOREIGN KEY (code_prestation) 
-        REFERENCES ListeEquipement("Code Prestation")
-);
 
 -- ============================================
 -- INDEXES
@@ -358,7 +300,3 @@ CREATE INDEX IX_MaintenanceRequests_Status ON MaintenanceRequests(status);
 CREATE INDEX IX_MaintenanceRequests_Dates ON MaintenanceRequests(date_debut, date_fin);
 CREATE INDEX IX_MaintenanceRequests_Equipement ON MaintenanceRequests(code_prestation);
 CREATE INDEX IX_MaintenanceRules_Active ON MaintenanceRules(is_active);
-CREATE INDEX IX_Kilometrage_Equipement ON EquipmentKilometrage(code_prestation, date_enregistrement DESC);
-CREATE INDEX IX_Kilometrage_Source ON EquipmentKilometrage(source, reference_id);
-CREATE INDEX IX_MaintenanceEquipment_Request ON MaintenanceEquipment(maintenance_request_id);
-CREATE INDEX IX_MaintenanceEquipment_Equipement ON MaintenanceEquipment(code_prestation);

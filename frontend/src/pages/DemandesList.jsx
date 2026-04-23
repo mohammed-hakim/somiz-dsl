@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { FileText, ChevronRight, Filter, X, Search, ArrowLeft, Plus } from 'lucide-react';
+const apiUrl = import.meta.env.VITE_API_URL;
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Tous les statuts' },
@@ -55,7 +56,7 @@ const DemandesList = ({ user }) => {
       if (filters.date_to) params.append('date_to', filters.date_to);
       if (filters.structureSearch) params.append('structure_search', filters.structureSearch);
 
-      const { data } = await axios.get(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/demandes?${params.toString()}`);
+      const { data } = await axios.get(`${apiUrl}/api/demandes?${params.toString()}`);
       setDemandes(data);
     } catch (err) {
       console.error(err);
@@ -74,7 +75,7 @@ const DemandesList = ({ user }) => {
     <div className="max-w-6xl mx-auto px-4 py-8">
       {/* Header */}
       <div className="mb-6">
-        <button 
+        <button
           onClick={() => navigate('/')}
           className="flex items-center gap-2 text-slate-500 hover:text-slate-700 mb-2 transition"
         >
@@ -98,11 +99,10 @@ const DemandesList = ({ user }) => {
       <div className="mb-4">
         <button
           onClick={() => setShowFilters(!showFilters)}
-          className={`flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg border transition ${
-            hasActiveFilters
+          className={`flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg border transition ${hasActiveFilters
               ? 'bg-blue-50 border-blue-200 text-blue-700'
               : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-          }`}
+            }`}
         >
           <Filter className="w-4 h-4" />
           Filtres
@@ -190,35 +190,35 @@ const DemandesList = ({ user }) => {
         <ul className="divide-y divide-slate-100">
           {demandes.length === 0 ? (
             <li className="p-8 text-center text-slate-500 flex flex-col items-center">
-               <FileText className="w-12 h-12 text-slate-300 mb-3" />
-               {hasActiveFilters ? 'Aucune demande ne correspond aux filtres' : 'Aucune demande trouvée'}
+              <FileText className="w-12 h-12 text-slate-300 mb-3" />
+              {hasActiveFilters ? 'Aucune demande ne correspond aux filtres' : 'Aucune demande trouvée'}
             </li>
           ) : (
-             demandes.map(d => (
-               <li 
-                 key={d.num_demande} 
-                 onClick={() => navigate(`/demande/${encodeURIComponent(d.num_demande)}`)}
-                 className="p-5 hover:bg-slate-50/80 transition-colors flex items-center justify-between group cursor-pointer"
-               >
-                 <div>
-                   <h3 className="font-semibold text-slate-800 text-lg flex items-center gap-3">
-                     {d.num_demande}
-                     <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${getStatusStyle(d.status)}`}>
-                       {d.status}
-                     </span>
-                   </h3>
-                   <div className="text-sm text-slate-500 mt-2 grid grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-1">
-                     <p><b>Client:</b> {d.client || '-'}</p>
-                     <p><b>Date:</b> {d.date_demande}</p>
-                     <p><b>Structure:</b> {d.structure_initial || '-'}</p>
-                     <p><b>Demandeur:</b> {d.demandeur}</p>
-                   </div>
-                 </div>
-                 <div className="text-slate-400 group-hover:text-blue-500 transition-colors">
-                    <ChevronRight className="w-6 h-6" />
-                 </div>
-               </li>
-             ))
+            demandes.map(d => (
+              <li
+                key={d.num_demande}
+                onClick={() => navigate(`/demande/${encodeURIComponent(d.num_demande)}`)}
+                className="p-5 hover:bg-slate-50/80 transition-colors flex items-center justify-between group cursor-pointer"
+              >
+                <div>
+                  <h3 className="font-semibold text-slate-800 text-lg flex items-center gap-3">
+                    {d.num_demande}
+                    <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${getStatusStyle(d.status)}`}>
+                      {d.status}
+                    </span>
+                  </h3>
+                  <div className="text-sm text-slate-500 mt-2 grid grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-1">
+                    <p><b>Client:</b> {d.client || '-'}</p>
+                    <p><b>Date:</b> {d.date_demande}</p>
+                    <p><b>Structure:</b> {d.structure_initial || '-'}</p>
+                    <p><b>Demandeur:</b> {d.demandeur}</p>
+                  </div>
+                </div>
+                <div className="text-slate-400 group-hover:text-blue-500 transition-colors">
+                  <ChevronRight className="w-6 h-6" />
+                </div>
+              </li>
+            ))
           )}
         </ul>
       </div>

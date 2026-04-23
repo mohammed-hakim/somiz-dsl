@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { Wrench, Calendar, Plus, CheckCircle, XCircle, Clock, AlertTriangle, Gauge, Filter, ArrowLeft } from 'lucide-react';
+const apiUrl = import.meta.env.VITE_API_URL;
 
 const MaintenanceDSL = ({ user }) => {
   const navigate = useNavigate();
@@ -40,9 +41,9 @@ const MaintenanceDSL = ({ user }) => {
       if (filters.date_to) params.append('date_to', filters.date_to);
 
       const [reqRes, typeRes, eqRes] = await Promise.all([
-        axios.get(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/maintenance/requests?${params.toString()}`),
-        axios.get('https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/maintenance/types'),
-        axios.get('https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/equipements')
+        axios.get(`${apiUrl}/api/maintenance/requests?${params.toString()}`),
+        axios.get(`${apiUrl}/api/maintenance/types`),
+        axios.get(`${apiUrl}/api/equipements`)
       ]);
       setRequests(reqRes.data);
       setMaintenanceTypes(typeRes.data);
@@ -70,10 +71,10 @@ const MaintenanceDSL = ({ user }) => {
   useEffect(() => {
     const checkAvailability = async () => {
       if (!formData.code_prestation || !formData.date_debut || !formData.date_fin) return;
-      
+
       try {
         const { data } = await axios.get(
-          `https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/equipements/${formData.code_prestation}/availability?date_debut=${formData.date_debut}&date_fin=${formData.date_fin}`
+          `${apiUrl}/api/equipements/${formData.code_prestation}/availability?date_debut=${formData.date_debut}&date_fin=${formData.date_fin}`
         );
         setAvailability(data);
       } catch (err) {
@@ -93,7 +94,7 @@ const MaintenanceDSL = ({ user }) => {
     }
 
     try {
-      await axios.post('https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/maintenance/requests', {
+      await axios.post(`${apiUrl}/api/maintenance/requests`, {
         ...formData,
         demandeur_matricule: user.matricule,
         demandeur_structure: user.structure
@@ -108,7 +109,7 @@ const MaintenanceDSL = ({ user }) => {
         description: ''
       });
       // Refresh the list
-      const { data } = await axios.get(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/maintenance/requests?matricule=${user.matricule}&structure=${user.structure}&role=${user.role}`);
+      const { data } = await axios.get(`${apiUrl}/api/maintenance/requests?matricule=${user.matricule}&structure=${user.structure}&role=${user.role}`);
       setRequests(data);
     } catch (err) {
       setError(err.response?.data?.error || 'Erreur lors de la création');
@@ -129,7 +130,7 @@ const MaintenanceDSL = ({ user }) => {
     <div className="max-w-6xl mx-auto px-4 py-8">
       <div className="mb-8 flex justify-between items-center">
         <div>
-          <button 
+          <button
             onClick={() => navigate('/')}
             className="flex items-center gap-2 text-slate-500 hover:text-slate-700 mb-2 transition"
           >
@@ -140,7 +141,7 @@ const MaintenanceDSL = ({ user }) => {
           </h2>
           <p className="text-slate-500 text-sm mt-1">Demander la maintenance d'équipements à la structure MVE</p>
         </div>
-        <button 
+        <button
           onClick={() => setShowForm(!showForm)}
           className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-md flex items-center gap-2 transition"
         >
@@ -219,7 +220,7 @@ const MaintenanceDSL = ({ user }) => {
                 <label className="block text-sm font-semibold text-slate-700 mb-2">Équipement</label>
                 <select
                   value={formData.code_prestation}
-                  onChange={(e) => setFormData({...formData, code_prestation: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, code_prestation: e.target.value })}
                   required
                   className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
                 >
@@ -271,7 +272,7 @@ const MaintenanceDSL = ({ user }) => {
                 <input
                   type="date"
                   value={formData.date_debut}
-                  onChange={(e) => setFormData({...formData, date_debut: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, date_debut: e.target.value })}
                   required
                   min={new Date().toISOString().split('T')[0]}
                   className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
@@ -282,7 +283,7 @@ const MaintenanceDSL = ({ user }) => {
                 <input
                   type="date"
                   value={formData.date_fin}
-                  onChange={(e) => setFormData({...formData, date_fin: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, date_fin: e.target.value })}
                   required
                   min={formData.date_debut || new Date().toISOString().split('T')[0]}
                   className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
@@ -290,22 +291,22 @@ const MaintenanceDSL = ({ user }) => {
               </div>
             </div>
             <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Kilométrage Actuel</label>
-                <input
-                  type="number"
-                  value={formData.kilometrage_actuel}
-                  onChange={(e) => setFormData({...formData, kilometrage_actuel: e.target.value})}
-                  min="0"
-                  placeholder="Ex: 45000"
-                  className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Kilométrage Actuel</label>
+              <input
+                type="number"
+                value={formData.kilometrage_actuel}
+                onChange={(e) => setFormData({ ...formData, kilometrage_actuel: e.target.value })}
+                min="0"
+                placeholder="Ex: 45000"
+                className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
 
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">Description</label>
               <textarea
                 value={formData.description}
-                onChange={(e) => setFormData({...formData, description: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 rows={3}
                 className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
                 placeholder="Décrivez la maintenance nécessaire..."

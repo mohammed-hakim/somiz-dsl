@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Plus, FileText, ChevronRight, Bell, ChevronDown, ChevronUp, Filter, X, CalendarDays, Search, Wrench, ClipboardList, TrendingUp, Clock, AlertCircle } from 'lucide-react';
+const apiUrl = import.meta.env.VITE_API_URL;
 
 const getEndingStyle = (hours) => {
   if (hours <= 12) return { bg: 'bg-red-50 border-red-200', text: 'text-red-700', badge: 'bg-red-500 text-white', label: 'Urgent' };
@@ -26,8 +27,8 @@ const Dashboard = ({ user }) => {
         role: user.role,
         structure: user.structure,
       });
-  
-      const { data } = await axios.get(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/demandes?${params.toString()}`);
+
+      const { data } = await axios.get(`${apiUrl}/api/demandes?${params.toString()}`);
       setDemandes(data);
     } catch (err) {
       console.error(err);
@@ -36,7 +37,7 @@ const Dashboard = ({ user }) => {
 
   const fetchNotifications = async () => {
     try {
-      const { data } = await axios.get(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/notifications?matricule=${user.matricule}&role=${user.role}&structure=${user.structure}`);
+      const { data } = await axios.get(`${apiUrl}/api/notifications?matricule=${user.matricule}&role=${user.role}&structure=${user.structure}`);
       setNotifications(data);
     } catch (err) {
       console.error(err);
@@ -45,7 +46,7 @@ const Dashboard = ({ user }) => {
 
   const fetchMaintenance = async () => {
     try {
-      const { data } = await axios.get(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/maintenance/requests`);
+      const { data } = await axios.get(`${apiUrl}/api/maintenance/requests`);
       setMaintenanceRequests(data.slice(0, 5)); // Get last 5
     } catch (err) {
       console.error(err);
@@ -98,7 +99,7 @@ const Dashboard = ({ user }) => {
           <p className="text-slate-500 text-sm mt-1">Vos demandes de moyens et engins</p>
         </div>
         {!(['MVE', 'CPA'].includes(user.structure)) && ((user.role === 'agent' && user.structure !== 'DSL') || ['secretaire', 'chef service'].includes(user.role)) && (
-          <button 
+          <button
             onClick={() => navigate('/demande/new')}
             className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-md flex items-center gap-2 transition"
           >
@@ -215,7 +216,7 @@ const Dashboard = ({ user }) => {
 
       {/* ─── QUICK ACTIONS CARDS ─── */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        
+
         {/* MVE: Only Maintenance */}
         {user.structure === 'MVE' && (
           <>

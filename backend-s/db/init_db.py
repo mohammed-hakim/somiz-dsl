@@ -1,3 +1,4 @@
+
 import sqlite3
 import os
 
@@ -11,7 +12,7 @@ def init_database():
     if db_exists:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        # Check if database has tables
+        
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
         tables = cursor.fetchall()
         conn.close()
@@ -20,36 +21,47 @@ def init_database():
             print(f"Database already initialized with {len(tables)} tables")
             return
     
-    # Database is empty or doesn't exist - initialize it
     print("Initializing database...")
     conn = sqlite3.connect(db_path)
-    
-    # Read and execute the SQL file
-    schema_path = os.path.join(os.path.dirname(__file__), 'schema.sql')
-    
+
+    base_dir = os.path.dirname(__file__)
+    schema_path = os.path.join(base_dir, 'schema.sql')
+    mock_path = os.path.join(base_dir, 'mock.sql')
+
     try:
+        # --- Execute schema.sql ---
         with open(schema_path, 'r', encoding='utf-8') as f:
-            sql_script = f.read()
+            schema_sql = f.read()
         
-        # Execute the entire script
-        conn.executescript(sql_script)
+        conn.executescript(schema_sql)
+        print("Schema loaded")
+
+        # --- Execute mock.sql ---
+        if os.path.exists(mock_path):
+            with open(mock_path, 'r', encoding='utf-8') as f:
+                mock_sql = f.read()
+            
+            conn.executescript(mock_sql)
+            print("Mock data loaded")
+        else:
+            print("mock.sql not found, skipping...")
+
         conn.commit()
-        
-        # Verify tables were created
+
+        # Verify tables
         cursor = conn.cursor()
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
         tables = cursor.fetchall()
-        
-        
+
         print(f"Database initialized successfully with {len(tables)} tables!")
-        
-    except FileNotFoundError:
-        print(f"Error: schema.sql not found at {schema_path}")
-        print("  Please ensure db/schema.sql exists")
+
+    except FileNotFoundError as e:
+        print(f"Missing file: {e}")
     except Exception as e:
         print(f"Error initializing database: {e}")
     finally:
         conn.close()
+
 
 if __name__ == '__main__':
     init_database()

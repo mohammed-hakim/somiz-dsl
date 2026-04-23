@@ -15,9 +15,6 @@ def get_employees():
     query = "SELECT matricule, nom, prenom, role, structure FROM RH WHERE 1=1"
     params = []
     
-    cursor.execute(query)
-    rows = cursor.fetchall()
-    print(rows[0] , structure)
 
     # Dynamic filtering
     if structure:
@@ -26,7 +23,6 @@ def get_employees():
         
     cursor.execute(query, params)
     rows = cursor.fetchall()
-    print(rows[0] , structure)
 
     conn.close()
     

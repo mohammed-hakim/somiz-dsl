@@ -10,6 +10,7 @@ import DemandesList from './pages/DemandesList';
 import Statistics from './pages/Statistics';
 import MaintenanceDSL from './pages/MaintenanceDSL';
 import MaintenanceMVE from './pages/MaintenanceMVE';
+const apiUrl = import.meta.env.VITE_API_URL;
 
 const Navbar = ({ user, setUser }) => {
   const [notifCount, setNotifCount] = useState(0);
@@ -18,7 +19,7 @@ const Navbar = ({ user, setUser }) => {
   useEffect(() => {
     const fetchCount = async () => {
       try {
-        const { data } = await axios.get(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/notifications?matricule=${user.matricule}&role=${user.role}&structure=${user.structure}`);
+        const { data } = await axios.get(`${apiUrl}/api/notifications?matricule=${user.matricule}&role=${user.role}&structure=${user.structure}`);
         setNotifCount(data.length);
       } catch { /* silent */ }
     };
@@ -67,7 +68,7 @@ const Navbar = ({ user, setUser }) => {
           <span className="text-sm font-medium text-slate-600">
             {user.nom} {user.prenom} ({user.role})
           </span>
-          <button 
+          <button
             onClick={() => { localStorage.removeItem('user'); setUser(null); window.location.href = '/login'; }}
             className="text-sm text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-md transition"
           >
@@ -91,14 +92,14 @@ function App() {
         {user && <Navbar user={user} setUser={setUser} />}
         <main>
           <Routes>
-             <Route path="/login" element={!user ? <Login setUser={setUser} /> : <Navigate to="/" />} />
-             <Route path="/" element={user ? <Dashboard user={user} /> : <Navigate to="/login" />} />
-             <Route path="/demande/new" element={user ? <DemandeForm user={user} /> : <Navigate to="/login" />} />
-             <Route path="/demande/:num_demande" element={user ? <DemandeView user={user} /> : <Navigate to="/login" />} />
-             <Route path="/demandes" element={user ? <DemandesList user={user} /> : <Navigate to="/login" />} />
-             <Route path="/statistics" element={user && user.structure === 'DSL' ? <Statistics user={user} /> : <Navigate to="/" />} />
-             <Route path="/maintenance" element={user ? (user.structure === 'MVE' ? <MaintenanceMVE user={user} /> : <MaintenanceDSL user={user} />) : <Navigate to="/login" />} />
-             <Route path="*" element={<Navigate to="/" />} />
+            <Route path="/login" element={!user ? <Login setUser={setUser} /> : <Navigate to="/" />} />
+            <Route path="/" element={user ? <Dashboard user={user} /> : <Navigate to="/login" />} />
+            <Route path="/demande/new" element={user ? <DemandeForm user={user} /> : <Navigate to="/login" />} />
+            <Route path="/demande/:num_demande" element={user ? <DemandeView user={user} /> : <Navigate to="/login" />} />
+            <Route path="/demandes" element={user ? <DemandesList user={user} /> : <Navigate to="/login" />} />
+            <Route path="/statistics" element={user && user.structure === 'DSL' ? <Statistics user={user} /> : <Navigate to="/" />} />
+            <Route path="/maintenance" element={user ? (user.structure === 'MVE' ? <MaintenanceMVE user={user} /> : <MaintenanceDSL user={user} />) : <Navigate to="/login" />} />
+            <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </main>
       </div>

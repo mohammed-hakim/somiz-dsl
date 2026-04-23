@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { ArrowLeft, TrendingUp, FileText, Wrench, BarChart3, PieChart, Activity, Calendar, CheckCircle, Clock, XCircle, AlertCircle } from 'lucide-react';
-
+const apiUrl = import.meta.env.VITE_API_URL;
 const Statistics = ({ user }) => {
   const navigate = useNavigate();
   const [demandes, setDemandes] = useState([]);
@@ -18,8 +18,8 @@ const Statistics = ({ user }) => {
       });
 
       const [demandesRes, maintenanceRes] = await Promise.all([
-        axios.get(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/demandes?${params.toString()}`),
-        axios.get('https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/maintenance/requests')
+        axios.get(`${apiUrl}/api/demandes?${params.toString()}`),
+        axios.get(`${apiUrl}/api/maintenance/requests`)
       ]);
 
       setDemandes(demandesRes.data);
@@ -65,12 +65,12 @@ const Statistics = ({ user }) => {
     const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
     const currentMonth = new Date().getMonth();
     const last6Months = [];
-    
+
     for (let i = 5; i >= 0; i--) {
       const monthIndex = (currentMonth - i + 12) % 12;
       last6Months.push(months[monthIndex]);
     }
-    
+
     return last6Months;
   };
 
@@ -100,8 +100,8 @@ const Statistics = ({ user }) => {
           <span className="font-medium">{value} ({percentage.toFixed(1)}%)</span>
         </div>
         <div className="w-full bg-slate-100 rounded-full h-2">
-          <div 
-            className={`h-2 rounded-full ${color}`} 
+          <div
+            className={`h-2 rounded-full ${color}`}
             style={{ width: `${percentage}%` }}
           ></div>
         </div>
@@ -121,7 +121,7 @@ const Statistics = ({ user }) => {
     <div className="max-w-6xl mx-auto px-4 py-8">
       {/* Header */}
       <div className="mb-8">
-        <button 
+        <button
           onClick={() => navigate('/')}
           className="flex items-center gap-2 text-slate-500 hover:text-slate-700 mb-2 transition"
         >
@@ -135,31 +135,31 @@ const Statistics = ({ user }) => {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard 
-          title="Total Demandes" 
-          value={demandesStats.total} 
-          icon={FileText} 
+        <StatCard
+          title="Total Demandes"
+          value={demandesStats.total}
+          icon={FileText}
           color="bg-blue-500"
           subtext="Toutes structures confondues"
         />
-        <StatCard 
-          title="Total Maintenance" 
-          value={maintenanceStats.total} 
-          icon={Wrench} 
+        <StatCard
+          title="Total Maintenance"
+          value={maintenanceStats.total}
+          icon={Wrench}
           color="bg-emerald-500"
           subtext="Demandes de maintenance"
         />
-        <StatCard 
-          title="Demandes Actives" 
-          value={demandesStats.enAttente + demandesStats.valide + demandesStats.approuve + demandesStats.enCours} 
-          icon={Activity} 
+        <StatCard
+          title="Demandes Actives"
+          value={demandesStats.enAttente + demandesStats.valide + demandesStats.approuve + demandesStats.enCours}
+          icon={Activity}
           color="bg-indigo-500"
           subtext="En cours de traitement"
         />
-        <StatCard 
-          title="Maintenance En Cours" 
-          value={maintenanceStats.enCours + maintenanceStats.valide} 
-          icon={Clock} 
+        <StatCard
+          title="Maintenance En Cours"
+          value={maintenanceStats.enCours + maintenanceStats.valide}
+          icon={Clock}
           color="bg-orange-500"
           subtext="Validée ou en cours"
         />
@@ -175,7 +175,7 @@ const Statistics = ({ user }) => {
             </div>
             <h3 className="font-bold text-lg text-slate-800">Répartition des Demandes</h3>
           </div>
-          
+
           <ProgressBar label="En Attente" value={demandesStats.enAttente} total={demandesStats.total} color="bg-orange-400" />
           <ProgressBar label="Validé" value={demandesStats.valide} total={demandesStats.total} color="bg-green-400" />
           <ProgressBar label="Approuvé" value={demandesStats.approuve} total={demandesStats.total} color="bg-indigo-400" />
@@ -211,7 +211,7 @@ const Statistics = ({ user }) => {
             </div>
             <h3 className="font-bold text-lg text-slate-800">Répartition Maintenance</h3>
           </div>
-          
+
           <ProgressBar label="En Attente" value={maintenanceStats.enAttente} total={maintenanceStats.total} color="bg-orange-400" />
           <ProgressBar label="Validé" value={maintenanceStats.valide} total={maintenanceStats.total} color="bg-green-400" />
           <ProgressBar label="En Cours" value={maintenanceStats.enCours} total={maintenanceStats.total} color="bg-blue-400" />

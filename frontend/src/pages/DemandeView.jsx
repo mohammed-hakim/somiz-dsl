@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Check, CheckCircle, FileText, Anchor, History, XCircle, Printer, ScrollText, AlertTriangle, Play, X, Ban, Edit, Search } from 'lucide-react';
+const apiUrl = import.meta.env.VITE_API_URL;
 
 const getStatusStyle = (status) => {
    switch (status) {
@@ -91,7 +92,7 @@ const DemandeView = ({ user }) => {
 
    const fetchJournaux = async () => {
       try {
-         const { data } = await axios.get(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/demandes/${encodeURIComponent(num_demande)}/journaux`);
+         const { data } = await axios.get(`${apiUrl}/api/demandes/${encodeURIComponent(num_demande)}/journaux`);
          setJournaux(data);
       } catch (err) {
          console.error(err);
@@ -100,12 +101,12 @@ const DemandeView = ({ user }) => {
 
    const fetchDemande = async () => {
       try {
-         const { data } = await axios.get(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/demandes/${encodeURIComponent(num_demande)}`);
+         const { data } = await axios.get(`${apiUrl}/api/demandes/${encodeURIComponent(num_demande)}`);
          setDemande(data);
          document.title = data.num_demande || 'Demande';
 
          if (user.structure === 'DSL' && data.Status === 'Validé') {
-            axios.get(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/demandes/${encodeURIComponent(num_demande)}/engins_availability`)
+            axios.get(`${apiUrl}/api/demandes/${encodeURIComponent(num_demande)}/engins_availability`)
                .then(res => {
                   setEnginsAvailability(res.data);
                   const available = Object.keys(res.data).filter(k => res.data[k]);
@@ -128,7 +129,7 @@ const DemandeView = ({ user }) => {
    // Fetch equipements for edit modal
    useEffect(() => {
       if (editEquipModal && engineSearch.length >= 2) {
-         axios.get(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/equipements?search=${engineSearch}`)
+         axios.get(`${apiUrl}/api/equipements?search=${engineSearch}`)
             .then(res => setEquipements(res.data))
             .catch(e => console.error(e));
       }
@@ -145,7 +146,7 @@ const DemandeView = ({ user }) => {
    const handleUpdateEngins = async () => {
       try {
          setEditEquipError('');
-         await axios.put(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/demandes/${encodeURIComponent(num_demande)}/engins`, {
+         await axios.put(`${apiUrl}/api/demandes/${encodeURIComponent(num_demande)}/engins`, {
             engins: selectedEngins,
             matricule: user.matricule
          });
@@ -157,7 +158,7 @@ const DemandeView = ({ user }) => {
    };
 
    const toggleEngin = (code) => {
-      setSelectedEngins(prev => 
+      setSelectedEngins(prev =>
          prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]
       );
    };
@@ -165,7 +166,7 @@ const DemandeView = ({ user }) => {
    const handleValider = async () => {
       try {
          setErrorStatus('');
-         await axios.post(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/demandes/${encodeURIComponent(num_demande)}/valider`, { matricule: user.matricule });
+         await axios.post(`${apiUrl}/api/demandes/${encodeURIComponent(num_demande)}/valider`, { matricule: user.matricule });
          fetchDemande();
       } catch (err) {
          setErrorStatus(err.response?.data?.error || 'Erreur lors de la validation.');
@@ -174,7 +175,7 @@ const DemandeView = ({ user }) => {
 
    const handleRejeter = (motif) => {
       setErrorStatus('');
-      axios.post(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/demandes/${encodeURIComponent(num_demande)}/rejeter`, {
+      axios.post(`${apiUrl}/api/demandes/${encodeURIComponent(num_demande)}/rejeter`, {
          matricule: user.matricule,
          motif
       }).then(() => {
@@ -189,7 +190,7 @@ const DemandeView = ({ user }) => {
    const handleDslValider = async (action = 'approuver') => {
       try {
          setErrorStatus('');
-         await axios.post(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/demandes/${encodeURIComponent(num_demande)}/dsl_validate`, {
+         await axios.post(`${apiUrl}/api/demandes/${encodeURIComponent(num_demande)}/dsl_validate`, {
             matricule: user.matricule,
             action,
             ot: action === 'approuver' ? dslForm.ot : '',
@@ -204,7 +205,7 @@ const DemandeView = ({ user }) => {
    const handleCpaValider = async () => {
       try {
          setErrorStatus('');
-         await axios.post(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/demandes/${encodeURIComponent(num_demande)}/cpa_validate`, {
+         await axios.post(`${apiUrl}/api/demandes/${encodeURIComponent(num_demande)}/cpa_validate`, {
             matricule: user.matricule,
             ...cpaForm
          });
@@ -217,7 +218,7 @@ const DemandeView = ({ user }) => {
    const handleEnCours = async () => {
       try {
          setErrorStatus('');
-         await axios.post(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/demandes/${encodeURIComponent(num_demande)}/en_cours`, { matricule: user.matricule });
+         await axios.post(`${apiUrl}/api/demandes/${encodeURIComponent(num_demande)}/en_cours`, { matricule: user.matricule });
          fetchDemande();
       } catch (err) {
          setErrorStatus(err.response?.data?.error || 'Erreur lors du passage en cours.');
@@ -227,7 +228,7 @@ const DemandeView = ({ user }) => {
    const handleCloturer = async () => {
       try {
          setErrorStatus('');
-         await axios.post(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/demandes/${encodeURIComponent(num_demande)}/cloturer`, { matricule: user.matricule });
+         await axios.post(`${apiUrl}/api/demandes/${encodeURIComponent(num_demande)}/cloturer`, { matricule: user.matricule });
          fetchDemande();
       } catch (err) {
          setErrorStatus(err.response?.data?.error || 'Erreur lors de la clôture.');
@@ -236,7 +237,7 @@ const DemandeView = ({ user }) => {
 
    const handleAnnuler = (motif) => {
       setErrorStatus('');
-      axios.post(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/demandes/${encodeURIComponent(num_demande)}/annuler`, {
+      axios.post(`${apiUrl}/api/demandes/${encodeURIComponent(num_demande)}/annuler`, {
          matricule: user.matricule,
          motif
       }).then(() => {
@@ -367,7 +368,7 @@ const DemandeView = ({ user }) => {
                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider print:text-black print:border-b print:border-black print:pb-1">4. Moyens (Engins) Demandés</h4>
                      {/* Edit Equipment Button - Only for DSL and editable statuses */}
                      {user.structure === 'DSL' && ['En Attente', 'Validé'].includes(demande.Status) && (
-                        <button 
+                        <button
                            onClick={openEditEquipModal}
                            className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition print:hidden"
                         >
@@ -380,25 +381,26 @@ const DemandeView = ({ user }) => {
                      {demande.engins_detail?.map(eq => {
                         const isAvail = enginsAvailability ? enginsAvailability[eq.code] : null;
                         return (
-                        <li key={eq.code} className="flex items-center gap-2 text-sm text-slate-700 bg-blue-50/50 px-3 py-2 rounded border border-blue-100 print:bg-white print:border-none print:p-0 print:text-black font-medium">
-                           {user.structure === 'DSL' && demande.Status === 'Validé' && ['secretaire', 'chef service'].includes(user.role) && (
-                              <input 
-                                 type="checkbox" 
-                                 checked={assignedEngins.includes(eq.code)}
-                                 onChange={(e) => {
-                                    if(e.target.checked) setAssignedEngins(prev => [...prev, eq.code]);
-                                    else setAssignedEngins(prev => prev.filter(c => c !== eq.code));
-                                 }}
-                                 disabled={isAvail === false}
-                                 className="w-4 h-4 text-blue-600 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                              />
-                           )}
-                           <Anchor className="w-4 h-4 text-blue-500 print:hidden" />
-                           {eq.prestation} <span className="text-blue-400 text-xs text-slate-400 print:text-black print:opacity-60">({eq.code})</span>
-                           {isAvail === false && <span className="text-xs font-bold text-red-500 ml-auto mr-2 border border-red-200 bg-red-50 px-2 py-0.5 rounded">Non Dispo</span>}
-                           {isAvail === true && <span className="text-xs font-bold text-green-600 ml-auto mr-2 border border-green-200 bg-green-50 px-2 py-0.5 rounded">Dispo</span>}
-                        </li>
-                     )})}
+                           <li key={eq.code} className="flex items-center gap-2 text-sm text-slate-700 bg-blue-50/50 px-3 py-2 rounded border border-blue-100 print:bg-white print:border-none print:p-0 print:text-black font-medium">
+                              {user.structure === 'DSL' && demande.Status === 'Validé' && ['secretaire', 'chef service'].includes(user.role) && (
+                                 <input
+                                    type="checkbox"
+                                    checked={assignedEngins.includes(eq.code)}
+                                    onChange={(e) => {
+                                       if (e.target.checked) setAssignedEngins(prev => [...prev, eq.code]);
+                                       else setAssignedEngins(prev => prev.filter(c => c !== eq.code));
+                                    }}
+                                    disabled={isAvail === false}
+                                    className="w-4 h-4 text-blue-600 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                 />
+                              )}
+                              <Anchor className="w-4 h-4 text-blue-500 print:hidden" />
+                              {eq.prestation} <span className="text-blue-400 text-xs text-slate-400 print:text-black print:opacity-60">({eq.code})</span>
+                              {isAvail === false && <span className="text-xs font-bold text-red-500 ml-auto mr-2 border border-red-200 bg-red-50 px-2 py-0.5 rounded">Non Dispo</span>}
+                              {isAvail === true && <span className="text-xs font-bold text-green-600 ml-auto mr-2 border border-green-200 bg-green-50 px-2 py-0.5 rounded">Dispo</span>}
+                           </li>
+                        )
+                     })}
                   </ul>
                </div>
 
@@ -475,16 +477,16 @@ const DemandeView = ({ user }) => {
          {/* TRACKING TIMELINE / SCREEN ONLY */}
          <div className="print:hidden">
             <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><History className="w-5 h-5" /> Suivi de la Demande</h3>
-            
+
             {/* Steps Progress Bar */}
             <div className="mb-8">
                {(() => {
                   // Check if this demande went through Sous Traitance
                   // It's Sous Traitance if: currently in that status, OR was approved by CPA (has date_cpa)
-                  const hasSousTraitance = demande.Status === 'Sous Traitance' || 
-                                          demande.date_cpa ||
-                                          (demande.Status === 'Approuvé' && demande.date_validation_prestataire && !demande.validateur_dsl);
-                  
+                  const hasSousTraitance = demande.Status === 'Sous Traitance' ||
+                     demande.date_cpa ||
+                     (demande.Status === 'Approuvé' && demande.date_validation_prestataire && !demande.validateur_dsl);
+
                   const steps = hasSousTraitance
                      ? [
                         { label: 'En Attente', key: 'en_attente' },
@@ -501,11 +503,11 @@ const DemandeView = ({ user }) => {
                         { label: 'En Cours', key: 'en_cours' },
                         { label: 'Clôturé', key: 'cloture' },
                      ];
-                  
+
                   const statusOrder = hasSousTraitance
                      ? { 'En Attente': 0, 'Validé': 1, 'Sous Traitance': 2, 'Approuvé': 3, 'En Cours': 4, 'Clôturé': 5 }
                      : { 'En Attente': 0, 'Validé': 1, 'Approuvé': 2, 'En Cours': 3, 'Clôturé': 4 };
-                  
+
                   // For cancelled demandes, determine at which stage it was cancelled
                   let cancelledAtIdx = -1;
                   if (demande.Status === 'Annulé') {
@@ -514,16 +516,15 @@ const DemandeView = ({ user }) => {
                      else if (!demande.validateur_dsl && demande.date_validation_prestataire) cancelledAtIdx = hasSousTraitance ? 3 : 2; // Approuvé
                      else cancelledAtIdx = 1; // Validé
                   }
-                  
+
                   const currentIdx = statusOrder[demande.Status] ?? -1;
                   const isTerminal = ['Rejeté', 'Annulé'].includes(demande.Status);
 
                   return (
                      <div className="relative">
                         {isTerminal && (
-                           <div className={`mb-4 p-4 rounded-xl border flex items-center gap-3 ${
-                              demande.Status === 'Rejeté' ? 'bg-red-50 border-red-200' : 'bg-orange-50 border-orange-200'
-                           }`}>
+                           <div className={`mb-4 p-4 rounded-xl border flex items-center gap-3 ${demande.Status === 'Rejeté' ? 'bg-red-50 border-red-200' : 'bg-orange-50 border-orange-200'
+                              }`}>
                               <XCircle className={`w-5 h-5 ${demande.Status === 'Rejeté' ? 'text-red-500' : 'text-orange-500'}`} />
                               <span className={`font-bold text-sm ${demande.Status === 'Rejeté' ? 'text-red-700' : 'text-orange-700'}`}>
                                  Demande {demande.Status}
@@ -538,13 +539,12 @@ const DemandeView = ({ user }) => {
                               return (
                                  <React.Fragment key={step.key}>
                                     <div className="flex flex-col items-center flex-1">
-                                       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all ${
-                                          isCancelled
+                                       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all ${isCancelled
                                              ? 'bg-red-500 border-red-500 text-white'
-                                             : isActive 
+                                             : isActive
                                                 ? (isCurrent ? 'bg-blue-600 border-blue-600 text-white scale-110 shadow-lg shadow-blue-200' : 'bg-green-500 border-green-500 text-white')
                                                 : 'bg-white border-slate-300 text-slate-400'
-                                       }`}>
+                                          }`}>
                                           {isCancelled ? <X className="w-4 h-4" /> : (isActive && !isCurrent ? <Check className="w-4 h-4" /> : idx + 1)}
                                        </div>
                                        <span className={`text-[10px] mt-1.5 font-medium text-center ${isActive || isCancelled ? 'text-slate-800' : 'text-slate-400'}`}>
@@ -552,10 +552,9 @@ const DemandeView = ({ user }) => {
                                        </span>
                                     </div>
                                     {idx < steps.length - 1 && (
-                                       <div className={`flex-1 h-0.5 -mt-4 ${
-                                          isCancelled ? 'bg-red-400' : 
-                                          (idx < currentIdx && !isTerminal ? 'bg-green-400' : 'bg-slate-200')
-                                       }`} />
+                                       <div className={`flex-1 h-0.5 -mt-4 ${isCancelled ? 'bg-red-400' :
+                                             (idx < currentIdx && !isTerminal ? 'bg-green-400' : 'bg-slate-200')
+                                          }`} />
                                     )}
                                  </React.Fragment>
                               );
@@ -575,9 +574,8 @@ const DemandeView = ({ user }) => {
                   <div className="mt-3 flex items-center gap-1 text-green-600 text-xs font-bold"><CheckCircle className="w-4 h-4" /> Initiée ({demande.Date_Demande})</div>
                </div>
 
-               <div className={`p-5 bg-white border border-slate-200 rounded-xl shadow-sm border-l-4 ${
-                  demande.Status === 'Rejeté' && !demande.date_validation_demandeur ? 'border-l-red-400' : 'border-l-green-400'
-               }`}>
+               <div className={`p-5 bg-white border border-slate-200 rounded-xl shadow-sm border-l-4 ${demande.Status === 'Rejeté' && !demande.date_validation_demandeur ? 'border-l-red-400' : 'border-l-green-400'
+                  }`}>
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Validation Département Demandeur</h4>
                   {demande.Status === 'Rejeté' && !demande.date_validation_demandeur ? (
                      <div className="mt-3 flex items-center gap-1 text-red-600 text-xs font-bold"><XCircle className="w-4 h-4" /> Rejeté</div>
@@ -588,9 +586,8 @@ const DemandeView = ({ user }) => {
                   )}
                </div>
 
-               <div className={`p-5 bg-white border border-slate-200 rounded-xl shadow-sm border-l-4 ${
-                  demande.Status === 'Rejeté' && demande.date_validation_demandeur ? 'border-l-red-400' : 'border-l-indigo-400'
-               }`}>
+               <div className={`p-5 bg-white border border-slate-200 rounded-xl shadow-sm border-l-4 ${demande.Status === 'Rejeté' && demande.date_validation_demandeur ? 'border-l-red-400' : 'border-l-indigo-400'
+                  }`}>
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Approbation DSL / CPA</h4>
                   {demande.Status === 'Rejeté' && demande.date_validation_demandeur ? (
                      <div className="mt-3 flex items-center gap-1 text-red-600 text-xs font-bold"><XCircle className="w-4 h-4" /> Rejeté par DSL</div>
@@ -618,7 +615,7 @@ const DemandeView = ({ user }) => {
 
             {/* ACTIONS CONDITIONNELLES */}
             <div className="flex flex-col gap-4">
-               
+
                {/* Chef Departement Demandeur: Valider ou Rejeter (quand En Attente) */}
                {user.role === 'chef departement' && demande.Status === 'En Attente' && (
                   <div className="grid grid-cols-2 gap-4">

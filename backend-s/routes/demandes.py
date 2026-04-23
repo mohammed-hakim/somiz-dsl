@@ -165,10 +165,6 @@ def get_demandes():
     
     cursor.execute(q, params)
     rows = cursor.fetchall()
-
-    cursor.execute("SELECT * from RH")
-    rows2 = cursor.fetchall()
-    print(rows2)
     conn.close()
     
     results = []
@@ -185,8 +181,6 @@ def get_demandes():
             "date_debut_prestation": r[9][:10] if r[9] else ""  # SQLite stores as text
         })
 
-
-    print(results)
         
     return jsonify(results)
 

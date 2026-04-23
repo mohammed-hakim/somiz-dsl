@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { Wrench, Calendar, CheckCircle, XCircle, Clock, AlertTriangle, User, Gauge, Filter, Search, ArrowLeft } from 'lucide-react';
-
+const apiUrl = import.meta.env.VITE_API_URL;
 const MaintenanceMVE = ({ user }) => {
   const navigate = useNavigate();
   const [requests, setRequests] = useState([]);
@@ -29,12 +29,12 @@ const MaintenanceMVE = ({ user }) => {
       if (filters.categorie) params.append('categorie', filters.categorie);
       if (filters.date_from) params.append('date_from', filters.date_from);
       if (filters.date_to) params.append('date_to', filters.date_to);
-      
+
       const { data } = await axios.get(
-        `https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/maintenance/requests?${params.toString()}`
+        `${apiUrl}/api/maintenance/requests?${params.toString()}`
       );
       setRequests(data);
-      
+
       // Extract unique structures for filter dropdown
       const uniqueStructures = [...new Set(data.map(r => r.demandeur_structure).filter(Boolean))];
       setStructures(uniqueStructures);
@@ -59,7 +59,7 @@ const MaintenanceMVE = ({ user }) => {
   const handleValider = async (requestId) => {
     try {
       setError('');
-      await axios.post(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/maintenance/requests/${requestId}/valider`, {
+      await axios.post(`${apiUrl}/api/maintenance/requests/${requestId}/valider`, {
         matricule: user.matricule
       });
       loadRequests();
@@ -80,9 +80,9 @@ const MaintenanceMVE = ({ user }) => {
       setError('Le motif de rejet est obligatoire');
       return;
     }
-    
+
     try {
-      await axios.post(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/maintenance/requests/${selectedRequest.id}/rejeter`, {
+      await axios.post(`${apiUrl}/api/maintenance/requests/${selectedRequest.id}/rejeter`, {
         matricule: user.matricule,
         motif: motifRejet
       });
@@ -96,7 +96,7 @@ const MaintenanceMVE = ({ user }) => {
 
   const handleTerminer = async (requestId) => {
     try {
-      await axios.post(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/maintenance/requests/${requestId}/terminer`, {
+      await axios.post(`${apiUrl}/api/maintenance/requests/${requestId}/terminer`, {
         matricule: user.matricule
       });
       loadRequests();
@@ -122,7 +122,7 @@ const MaintenanceMVE = ({ user }) => {
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       <div className="mb-8">
-        <button 
+        <button
           onClick={() => navigate('/')}
           className="flex items-center gap-2 text-slate-500 hover:text-slate-700 mb-2 transition"
         >
@@ -241,13 +241,13 @@ const MaintenanceMVE = ({ user }) => {
                     )}
                   </div>
                   <div className="flex gap-2 ml-4">
-                    <button 
+                    <button
                       onClick={() => handleValider(r.id)}
                       className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition"
                     >
                       <CheckCircle className="w-4 h-4" /> Valider
                     </button>
-                    <button 
+                    <button
                       onClick={() => openRejetModal(r)}
                       className="bg-red-100 hover:bg-red-200 text-red-700 px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition"
                     >
@@ -293,7 +293,7 @@ const MaintenanceMVE = ({ user }) => {
                       )}
                     </div>
                   </div>
-                  <button 
+                  <button
                     onClick={() => handleTerminer(r.id)}
                     className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition"
                   >
@@ -323,13 +323,13 @@ const MaintenanceMVE = ({ user }) => {
             />
             {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
             <div className="flex gap-4">
-              <button 
+              <button
                 onClick={handleRejeter}
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-lg"
               >
                 Confirmer le Rejet
               </button>
-              <button 
+              <button
                 onClick={() => setShowRejetModal(false)}
                 className="px-6 py-3 border border-slate-300 rounded-lg hover:bg-slate-50"
               >

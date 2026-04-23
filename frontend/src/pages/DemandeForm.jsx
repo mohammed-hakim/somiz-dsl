@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Search, Send, Loader2 } from 'lucide-react';
+const apiUrl = import.meta.env.VITE_API_URL;
 
 const DemandeForm = ({ user }) => {
   const navigate = useNavigate();
@@ -34,19 +35,19 @@ const DemandeForm = ({ user }) => {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      axios.get(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/equipements?search=${engineSearch}`).then(res => setEquipements(res.data));
+      axios.get(`${apiUrl}/api/equipements?search=${engineSearch}`).then(res => setEquipements(res.data));
     }, 300);
     return () => clearTimeout(timer);
   }, [engineSearch]);
 
   useEffect(() => {
     if (user.role === 'secretaire' && user.structure === 'DSL' && formData.demandeur_structure) {
-      axios.get(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/employees?structure=${formData.demandeur_structure}`).then(res => {
+      axios.get(`${apiUrl}/api/employees?structure=${formData.demandeur_structure}`).then(res => {
         setEmployees(res.data.filter(e => e.role !== 'chef departement'));
         setChefs(res.data.filter(e => e.role === 'chef departement'));
       });
     } else if (user.role === 'secretaire' && user.structure !== 'DSL') {
-      axios.get(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/employees?structure=${user.structure}`).then(res => setEmployees(res.data.filter(e => e.role !== 'chef departement')));
+      axios.get(`${apiUrl}/api/employees?structure=${user.structure}`).then(res => setEmployees(res.data.filter(e => e.role !== 'chef departement')));
     }
   }, [user, formData.demandeur_structure]);
 
@@ -55,7 +56,7 @@ const DemandeForm = ({ user }) => {
     if (formData.code_affaire.length === 7) {
       setLoadingAffaire(true);
       setAffaireError('');
-      axios.get(`https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/affaires_structures/${formData.code_affaire}`)
+      axios.get(`${apiUrl}/api/affaires_structures/${formData.code_affaire}`)
         .then(({ data }) => {
           setAffaireInfo({
             client: data.client,
@@ -133,7 +134,7 @@ const DemandeForm = ({ user }) => {
       .join('\n');
 
     try {
-      const res = await axios.post('https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/demandes', {
+      const res = await axios.post(`${apiUrl}/api/demandes`, {
         ...formData,
         observation: joinedObservations,
         structure: user.struc_code || 'GEN',

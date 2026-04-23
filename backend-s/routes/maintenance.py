@@ -55,8 +55,8 @@ def get_maintenance_requests():
     
     where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
     
-    # FIX: Changed eq.[Code Prestation] to eq.Code_Prestation 
-    # FIX: Changed eq.[Prestation] to eq.Prestation
+    
+    
     query = f"""
         SELECT m.id, m.code_prestation, eq.Prestation as equipement,
                m.type_maintenance, mt.libelle as type_libelle, mt.categorie,
@@ -221,8 +221,8 @@ def get_maintenance_rules():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # FIX: Changed eq.[Code Prestation] to eq.Code_Prestation 
-    # FIX: Changed eq.[Prestation] to eq.Prestation
+    
+    
     if code_prestation:
         cursor.execute("""
             SELECT r.id, r.code_prestation, eq.Prestation, r.type_maintenance, mt.libelle, mt.categorie,

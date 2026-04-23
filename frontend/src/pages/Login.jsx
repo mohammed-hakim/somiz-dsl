@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { LogIn } from 'lucide-react';
+const apiUrl = import.meta.env.VITE_API_URL;
 
 const Login = ({ setUser }) => {
   const [matricule, setMatricule] = useState('');
@@ -12,7 +13,7 @@ const Login = ({ setUser }) => {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const { data } = await axios.post('https://backend-crt-78564523-dev.apps.rm1.0a51.p1.openshiftapps.com/api/login', { matricule, password });
+      const { data } = await axios.post(`${apiUrl}/api/login`, { matricule, password });
       localStorage.setItem('user', JSON.stringify(data));
       setUser(data);
       navigate('/');
@@ -37,7 +38,7 @@ const Login = ({ setUser }) => {
           <form onSubmit={handleLogin} className="space-y-6">
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">Matricule</label>
-              <input 
+              <input
                 type="text"
                 value={matricule}
                 onChange={(e) => setMatricule(e.target.value)}
@@ -46,16 +47,16 @@ const Login = ({ setUser }) => {
                 required
               />
             </div>
-            
+
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">Mot de Passe</label>
-              <input 
+              <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-4 py-3 rounded-lg border border-slate-200 bg-white/50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none"
                 placeholder="••••••"
-                required  
+                required
               />
             </div>
 
