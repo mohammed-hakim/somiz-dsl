@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Bell, Wrench } from 'lucide-react';
+import { Bell, Wrench, Truck } from 'lucide-react';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import DemandeForm from './pages/DemandeForm';
@@ -10,6 +10,7 @@ import DemandesList from './pages/DemandesList';
 import Statistics from './pages/Statistics';
 import MaintenanceDSL from './pages/MaintenanceDSL';
 import MaintenanceMVE from './pages/MaintenanceMVE';
+import EquipementsList from './pages/EquipementsList';
 const apiUrl = import.meta.env.VITE_API_URL;
 
 axios.interceptors.request.use((config) => {
@@ -68,6 +69,17 @@ const Navbar = ({ user, setUser }) => {
           SOMIZ Logistics
         </h1>
         <div className="flex items-center gap-4">
+          {/* Equipments Catalog Link */}
+          {user.structure === 'DSL' && (
+            <button
+              onClick={() => navigate('/equipements')}
+              className="p-2 rounded-lg hover:bg-slate-100 transition group"
+              title="Catalogue des Outils"
+            >
+              <Truck className="w-5 h-5 text-slate-500 group-hover:text-blue-600 transition" />
+            </button>
+          )}
+
           {/* Maintenance Link */}
           {(user.structure === 'DSL' || user.structure === 'MVE') && (
             <button
@@ -128,6 +140,7 @@ function App() {
             <Route path="/demande/:num_demande" element={user ? <DemandeView user={user} /> : <Navigate to="/login" />} />
             <Route path="/demandes" element={user ? <DemandesList user={user} /> : <Navigate to="/login" />} />
             <Route path="/statistics" element={user && user.structure === 'DSL' ? <Statistics user={user} /> : <Navigate to="/" />} />
+            <Route path="/equipements" element={user && user.structure === 'DSL' ? <EquipementsList user={user} /> : <Navigate to="/" />} />
             <Route path="/maintenance" element={user ? (user.structure === 'MVE' ? <MaintenanceMVE user={user} /> : <MaintenanceDSL user={user} />) : <Navigate to="/login" />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>

@@ -128,9 +128,7 @@ const MaintenanceMVE = ({ user }) => {
     }
   };
 
-  const pendingRequests = requests.filter(r => r.status === 'EN_ATTENTE');
-  const validatedRequests = requests.filter(r => r.status === 'VALIDE');
-  const otherRequests = requests.filter(r => ['REJETE', 'TERMINE', 'EN_COURS'].includes(r.status));
+
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
@@ -213,23 +211,28 @@ const MaintenanceMVE = ({ user }) => {
         )}
       </div>
 
-      {/* Pending Requests */}
+      {/* Requests List */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
-        <div className="p-6 border-b border-slate-200 bg-orange-50">
-          <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
-            <Clock className="w-5 h-5 text-orange-600" />
-            Demandes en Attente ({pendingRequests.length})
+        <div className="p-6 border-b border-slate-200">
+          <h3 className="text-lg font-semibold text-slate-800">
+            Demandes de Maintenance ({total})
           </h3>
         </div>
-        {pendingRequests.length === 0 ? (
+        
+        {requests.length === 0 ? (
           <div className="p-8 text-center text-slate-500">
-            <CheckCircle className="w-12 h-12 text-green-300 mx-auto mb-3" />
-            Aucune demande en attente
+            <CheckCircle className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+            Aucune demande de maintenance trouvée
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {pendingRequests.map(r => (
-              <div key={r.id} className="p-6 hover:bg-slate-50 transition">
+            {requests.map(r => {
+              const rowColor = r.status === 'EN_ATTENTE' ? 'bg-orange-50/40 border-l-4 border-l-orange-500' :
+                               r.status === 'VALIDE' ? 'bg-green-50/40 border-l-4 border-l-green-500' :
+                               'hover:bg-slate-50 border-l-4 border-l-transparent';
+              
+              return (
+              <div key={r.id} className={`p-6 transition ${rowColor} ${['TERMINE', 'REJETE'].includes(r.status) ? 'opacity-70' : ''}`}>
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <div className="flex items-center gap-3">
@@ -242,7 +245,7 @@ const MaintenanceMVE = ({ user }) => {
                       </span>
                     </div>
                     <p className="text-sm text-slate-500 mt-1">Type: {r.type_libelle}</p>
-                    <div className="flex items-center gap-4 mt-2 text-sm text-slate-600">
+                    <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-slate-600">
                       <span className="flex items-center gap-1"><Calendar className="w-4 h-4" /> Du {r.date_debut} au {r.date_fin}</span>
                       <span className="flex items-center gap-1"><User className="w-4 h-4" /> {r.demandeur_nom} ({r.demandeur_structure})</span>
                       {r.kilometrage_actuel && (
@@ -250,131 +253,46 @@ const MaintenanceMVE = ({ user }) => {
                       )}
                     </div>
                     {r.description && (
-                      <p className="text-sm text-slate-600 mt-2 bg-slate-50 p-2 rounded">{r.description}</p>
+                      <p className="text-sm text-slate-600 mt-2 bg-white border border-slate-100 p-2 rounded">{r.description}</p>
                     )}
                   </div>
+
+                  {/* Actions based on status */}
                   <div className="flex gap-2 ml-4">
-                    <button
-                      onClick={() => handleValider(r.id)}
-                      className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition"
-                    >
-                      <CheckCircle className="w-4 h-4" /> Valider
-                    </button>
-                    <button
-                      onClick={() => openRejetModal(r)}
-                      className="bg-red-100 hover:bg-red-200 text-red-700 px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition"
-                    >
-                      <XCircle className="w-4 h-4" /> Rejeter
-                    </button>
+                    {r.status === 'EN_ATTENTE' && (
+                      <>
+                        <button
+                          onClick={() => handleValider(r.id)}
+                          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm transition"
+                        >
+                          <CheckCircle className="w-4 h-4" /> Valider
+                        </button>
+                        <button
+                          onClick={() => openRejetModal(r)}
+                          className="bg-red-100 hover:bg-red-200 text-red-700 px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition"
+                        >
+                          <XCircle className="w-4 h-4" /> Rejeter
+                        </button>
+                      </>
+                    )}
+
+                    {r.status === 'VALIDE' && (
+                      <button
+                        onClick={() => handleTerminer(r.id)}
+                        className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm transition"
+                      >
+                        <CheckCircle className="w-4 h-4" /> Terminer
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
-            ))}
+            )})}
           </div>
         )}
       </div>
 
-      {/* Validated Requests */}
-      {validatedRequests.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
-          <div className="p-6 border-b border-slate-200 bg-green-50">
-            <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
-              <CheckCircle className="w-5 h-5 text-green-600" />
-              Demandes Validées en Cours ({validatedRequests.length})
-            </h3>
-          </div>
-          <div className="divide-y divide-slate-100">
-            {validatedRequests.map(r => (
-              <div key={r.id} className="p-6 hover:bg-slate-50 transition">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <h4 className="font-semibold text-slate-800">{r.equipement}</h4>
-                      <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${getStatusStyle(r.status)}`}>
-                        {r.status}
-                      </span>
-                      <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${r.categorie === 'Preventif' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
-                        {r.categorie}
-                      </span>
-                    </div>
-                    <p className="text-sm text-slate-500 mt-1">Type: {r.type_libelle}</p>
-                    <div className="flex items-center gap-4 mt-2 text-sm text-slate-600">
-                      <span className="flex items-center gap-1"><Calendar className="w-4 h-4" /> Du {r.date_debut} au {r.date_fin}</span>
-                      <span className="flex items-center gap-1"><User className="w-4 h-4" /> {r.demandeur_nom}</span>
-                      {r.kilometrage_actuel && (
-                        <span className="flex items-center gap-1"><Gauge className="w-4 h-4" /> {r.kilometrage_actuel} km</span>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleTerminer(r.id)}
-                    className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition"
-                  >
-                    <CheckCircle className="w-4 h-4" /> Terminer
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Rejet Modal */}
-      {showRejetModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
-            <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-red-500" />
-              Motif du Rejet
-            </h3>
-            <textarea
-              value={motifRejet}
-              onChange={(e) => setMotifRejet(e.target.value)}
-              rows={4}
-              className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-red-500 outline-none mb-4"
-              placeholder="Indiquez le motif du rejet..."
-            />
-            {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
-            <div className="flex gap-4">
-              <button
-                onClick={handleRejeter}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-lg"
-              >
-                Confirmer le Rejet
-              </button>
-              <button
-                onClick={() => setShowRejetModal(false)}
-                className="px-6 py-3 border border-slate-300 rounded-lg hover:bg-slate-50"
-              >
-                Annuler
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* History */}
-      {otherRequests.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="p-6 border-b border-slate-200">
-            <h3 className="text-lg font-semibold text-slate-800">Historique</h3>
-          </div>
-          <div className="divide-y divide-slate-100">
-            {otherRequests.map(r => (
-              <div key={r.id} className="p-6 hover:bg-slate-50 transition opacity-60">
-                <div className="flex items-center gap-3">
-                  <h4 className="font-semibold text-slate-800">{r.equipement}</h4>
-                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${getStatusStyle(r.status)}`}>
-                    {r.status}
-                  </span>
-                </div>
-                <p className="text-sm text-slate-500 mt-1">Type: {r.type_libelle}</p>
-                <p className="text-xs text-slate-400 mt-1">Du {r.date_debut} au {r.date_fin}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Pagination */}
       {totalPages > 1 && (

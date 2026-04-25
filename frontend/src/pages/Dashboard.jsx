@@ -109,12 +109,15 @@ const Dashboard = ({ user }) => {
               <Plus className="w-5 h-5" /> Nouvelle Demande
             </button>
           )}
-          <button
-            onClick={() => navigate('/demandes')}
-            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-5 py-2.5 rounded-lg font-medium shadow-sm flex items-center gap-2 transition hover:-translate-y-0.5"
-          >
-            <ClipboardList className="w-5 h-5" /> Toutes les demandes
-          </button>
+          {!['MVE'].includes(user.structure) && (
+
+            <button
+              onClick={() => navigate('/demandes')}
+              className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-5 py-2.5 rounded-lg font-medium shadow-sm flex items-center gap-2 transition hover:-translate-y-0.5"
+            >
+              <ClipboardList className="w-5 h-5" /> Toutes les demandes
+            </button>
+          )}
         </div>
       </div>
 
@@ -407,6 +410,30 @@ const Dashboard = ({ user }) => {
               <div className="flex justify-between items-center text-sm font-medium text-slate-200 mt-6 relative z-10">
                 <span>Accéder aux graphes</span>
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-2 transition-transform" />
+              </div>
+            </div>
+          )}
+
+          {/* Module: Equipements (For DSL) */}
+          {user.structure === 'DSL' && (
+            <div
+              onClick={() => navigate('/equipements')}
+              className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl p-6 text-white shadow-md cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all group relative overflow-hidden"
+            >
+              <div className="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
+                <Truck className="w-32 h-32" />
+              </div>
+              <div className="flex items-center gap-4 mb-2 relative z-10">
+                <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
+                  <Truck className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg">Catalogue Matériel</h3>
+                </div>
+              </div>
+              <div className="mt-4 bg-black/10 rounded-xl p-3 relative z-10 flex justify-between items-center text-sm text-blue-50">
+                <span>Explorer l'inventaire complet</span>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </div>
             </div>
           )}

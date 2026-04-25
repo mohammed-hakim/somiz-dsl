@@ -31,7 +31,7 @@ app.register_blueprint(notifications_bp)
 
 @app.route('/api/test', methods=['GET'])
 def testing():
-    return {"message": "Testing route is working 2!"}
+    return {"message": "Testing route is working 3!"}
 
 if __name__ == "__main__":
     app.run(debug=True, port=8080)
