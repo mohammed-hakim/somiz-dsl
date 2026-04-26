@@ -183,29 +183,34 @@ def create_maintenance_request():
     data = request.json
     
     conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute("""
-        INSERT INTO MaintenanceRequests 
-        (code_prestation, type_maintenance, date_debut, date_fin, 
-         kilometrage_actuel, description, demandeur_matricule, demandeur_structure)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        data.get('code_prestation'),
-        data.get('type_maintenance'),
-        data.get('date_debut'),
-        data.get('date_fin'),
-        data.get('kilometrage_actuel') or None,
-        data.get('description'),
-        g.user['matricule'],
-        g.user['structure']
-    ))
-    
-    request_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
-    
-    return jsonify({"message": "Demande de maintenance créée", "id": request_id}), 201
+    try:
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            INSERT INTO MaintenanceRequests 
+            (code_prestation, type_maintenance, date_debut, date_fin, 
+             kilometrage_actuel, description, demandeur_matricule, demandeur_structure)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            data.get('code_prestation'),
+            data.get('type_maintenance'),
+            data.get('date_debut'),
+            data.get('date_fin'),
+            data.get('kilometrage_actuel') or None,
+            data.get('description'),
+            g.user['matricule'],
+            g.user['structure']
+        ))
+        
+        request_id = cursor.lastrowid
+        conn.commit()
+        return jsonify({"message": "Demande de maintenance créée", "id": request_id}), 201
+    except Exception as e:
+        conn.rollback()
+        print(f"Transaction failed: {e}")
+        return jsonify({"error": "Erreur interne du serveur lors de la création de la demande de maintenance."}), 500
+    finally:
+        conn.close()
 
 @maintenance_bp.route('/api/maintenance/requests/<int:request_id>/valider', methods=['POST'])
 @require_auth
@@ -213,27 +218,30 @@ def valider_maintenance_request(request_id):
     matricule = g.user['matricule']
     
     conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT status FROM MaintenanceRequests WHERE id = ?", (request_id,))
-    row = cursor.fetchone()
-    if not row:
+    try:
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT status FROM MaintenanceRequests WHERE id = ?", (request_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Demande introuvable"}), 404
+        if row[0] != 'EN_ATTENTE':
+            return jsonify({"error": f"Impossible de valider: statut actuel est '{row[0]}'"}), 400
+        
+        cursor.execute("""
+            UPDATE MaintenanceRequests 
+            SET status = 'VALIDE', validateur_matricule = ?, date_validation = datetime('now', 'localtime')
+            WHERE id = ?
+        """, (matricule, request_id))
+        
+        conn.commit()
+        return jsonify({"message": "Maintenance validée avec succès"})
+    except Exception as e:
+        conn.rollback()
+        print(f"Transaction failed: {e}")
+        return jsonify({"error": "Erreur interne du serveur lors de la validation."}), 500
+    finally:
         conn.close()
-        return jsonify({"error": "Demande introuvable"}), 404
-    if row[0] != 'EN_ATTENTE':
-        conn.close()
-        return jsonify({"error": f"Impossible de valider: statut actuel est '{row[0]}'"}), 400
-    
-    cursor.execute("""
-        UPDATE MaintenanceRequests 
-        SET status = 'VALIDE', validateur_matricule = ?, date_validation = datetime('now', 'localtime')
-        WHERE id = ?
-    """, (matricule, request_id))
-    
-    conn.commit()
-    conn.close()
-    
-    return jsonify({"message": "Maintenance validée avec succès"})
 
 @maintenance_bp.route('/api/maintenance/requests/<int:request_id>/rejeter', methods=['POST'])
 @require_auth
@@ -246,24 +254,28 @@ def rejeter_maintenance_request(request_id):
         return jsonify({"error": "Le motif de rejet est obligatoire"}), 400
     
     conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT status FROM MaintenanceRequests WHERE id = ?", (request_id,))
-    row = cursor.fetchone()
-    if not row:
+    try:
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT status FROM MaintenanceRequests WHERE id = ?", (request_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Demande introuvable"}), 404
+        
+        cursor.execute("""
+            UPDATE MaintenanceRequests 
+            SET status = 'REJETE', validateur_matricule = ?, date_validation = datetime('now', 'localtime'), motif_rejet = ?
+            WHERE id = ?
+        """, (matricule, motif, request_id))
+        
+        conn.commit()
+        return jsonify({"message": "Maintenance rejetée"})
+    except Exception as e:
+        conn.rollback()
+        print(f"Transaction failed: {e}")
+        return jsonify({"error": "Erreur interne du serveur lors du rejet."}), 500
+    finally:
         conn.close()
-        return jsonify({"error": "Demande introuvable"}), 404
-    
-    cursor.execute("""
-        UPDATE MaintenanceRequests 
-        SET status = 'REJETE', validateur_matricule = ?, date_validation = datetime('now', 'localtime'), motif_rejet = ?
-        WHERE id = ?
-    """, (matricule, motif, request_id))
-    
-    conn.commit()
-    conn.close()
-    
-    return jsonify({"message": "Maintenance rejetée"})
 
 @maintenance_bp.route('/api/maintenance/requests/<int:request_id>/terminer', methods=['POST'])
 @require_auth
@@ -271,27 +283,30 @@ def terminer_maintenance_request(request_id):
     matricule = g.user['matricule']
     
     conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT status FROM MaintenanceRequests WHERE id = ?", (request_id,))
-    row = cursor.fetchone()
-    if not row:
+    try:
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT status FROM MaintenanceRequests WHERE id = ?", (request_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Demande introuvable"}), 404
+        if row[0] != 'VALIDE':
+            return jsonify({"error": f"Impossible de terminer: statut actuel est '{row[0]}'"}), 400
+        
+        cursor.execute("""
+            UPDATE MaintenanceRequests 
+            SET status = 'TERMINE', date_fin_reelle = datetime('now', 'localtime')
+            WHERE id = ?
+        """, (request_id,))
+        
+        conn.commit()
+        return jsonify({"message": "Maintenance terminée avec succès"})
+    except Exception as e:
+        conn.rollback()
+        print(f"Transaction failed: {e}")
+        return jsonify({"error": "Erreur interne du serveur lors de la clôture."}), 500
+    finally:
         conn.close()
-        return jsonify({"error": "Demande introuvable"}), 404
-    if row[0] != 'VALIDE':
-        conn.close()
-        return jsonify({"error": f"Impossible de terminer: statut actuel est '{row[0]}'"}), 400
-    
-    cursor.execute("""
-        UPDATE MaintenanceRequests 
-        SET status = 'TERMINE', date_fin_reelle = datetime('now', 'localtime')
-        WHERE id = ?
-    """, (request_id,))
-    
-    conn.commit()
-    conn.close()
-    
-    return jsonify({"message": "Maintenance terminée avec succès"})
 
 @maintenance_bp.route('/api/maintenance/rules', methods=['GET'])
 @require_auth
@@ -347,25 +362,30 @@ def create_maintenance_rule():
     data = request.json
     
     conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute("""
-        INSERT INTO MaintenanceRules 
-        (code_prestation, type_maintenance, interval_km, interval_days, 
-         alert_before_km, alert_before_days)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (
-        data.get('code_prestation'),
-        data.get('type_maintenance'),
-        data.get('interval_km'),
-        data.get('interval_days'),
-        data.get('alert_before_km', 500),
-        data.get('alert_before_days', 7)
-    ))
-    
-    rule_id = cursor.lastrowid
-    
-    conn.commit()
-    conn.close()
-    
-    return jsonify({"message": "Règle de maintenance créée", "id": rule_id}), 201
+    try:
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            INSERT INTO MaintenanceRules 
+            (code_prestation, type_maintenance, interval_km, interval_days, 
+             alert_before_km, alert_before_days)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (
+            data.get('code_prestation'),
+            data.get('type_maintenance'),
+            data.get('interval_km'),
+            data.get('interval_days'),
+            data.get('alert_before_km', 500),
+            data.get('alert_before_days', 7)
+        ))
+        
+        rule_id = cursor.lastrowid
+        
+        conn.commit()
+        return jsonify({"message": "Règle de maintenance créée", "id": rule_id}), 201
+    except Exception as e:
+        conn.rollback()
+        print(f"Transaction failed: {e}")
+        return jsonify({"error": "Erreur interne du serveur lors de la création de la règle."}), 500
+    finally:
+        conn.close()

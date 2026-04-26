@@ -12,91 +12,74 @@ def create_demande():
     data = request.json
     
     conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # 0. Check role from token instead of db fallback
-    creator_matricule = g.user['matricule']
-    if g.user['role'] == 'chef departement':
-        return jsonify({"error": "Chef Departement cannot create Demandes directly. Only approve."}), 403
+    try:
+        cursor = conn.cursor()
+        
+        # 0. Check role from token instead of db fallback
+        creator_matricule = g.user['matricule']
+        if g.user['role'] == 'chef departement':
+            return jsonify({"error": "Chef Departement cannot create Demandes directly. Only approve."}), 403
 
-    # 1. Validation for Engine Availability (Moved to DSL step/frontend)
-    requested_engins = data.get('engins', [])
+        # 1. Validation for Engine Availability (Moved to DSL step/frontend)
+        requested_engins = data.get('engins', [])
+                
+        # 2. Generate num_demande
+        year = str(datetime.now().year)[-2:]
+        structure = data.get('structure', 'GEN')
+        
+        # Compteur séquentiel basé sur le nombre de demandes existantes
+        cursor.execute("SELECT COUNT(*) FROM Demandes")
+        count = cursor.fetchone()[0]
+        next_num = count + 1
+        
+        num_demande = f"{structure}-{next_num}-{year}"
+        utilisateur = creator_matricule
+        actual_creator = creator_matricule
+        demandeur_structure = g.user['structure']
+        
+        validateur_demandeur = data.get('validateur_demandeur')
+        
+        if validateur_demandeur:
+            q = """
+            INSERT INTO Demandes (
+                num_demande, Code_Affaire, 
+                Date_Debut_Prestation, Date_Fin_Prestation,
+                description, Observation, utilisateur, Status,
+                ref_ods_client, lieu_prestation,
+                validateur_demandeur, date_validation_demandeur, demandeur_structure
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'Validé', ?, ?, ?, datetime('now'), ?)
+            """
+            params = (num_demande, data.get('code_affaire'), data.get('date_debut'), data.get('date_fin'), data.get('description'), data.get('observation'), utilisateur, data.get('ref_ods_client'), data.get('lieu_prestation'), validateur_demandeur, demandeur_structure)
+        else:
+            q = """
+            INSERT INTO Demandes (
+                num_demande, Code_Affaire, 
+                Date_Debut_Prestation, Date_Fin_Prestation,
+                description, Observation, utilisateur, Status,
+                ref_ods_client, lieu_prestation,
+                demandeur_structure
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'En Attente', ?, ?, ?)
+            """
+            params = (num_demande, data.get('code_affaire'), data.get('date_debut'), data.get('date_fin'), data.get('description'), data.get('observation'), utilisateur, data.get('ref_ods_client'), data.get('lieu_prestation'), demandeur_structure)
             
-    # 2. Generate num_demande
-    year = str(datetime.now().year)[-2:]
-    structure = data.get('structure', 'GEN')
-    
-    # Compteur séquentiel basé sur le nombre de demandes existantes
-    cursor.execute("SELECT COUNT(*) FROM Demandes")
-    count = cursor.fetchone()[0]
-    next_num = count + 1
-    
-    num_demande = f"{structure}-{next_num}-{year}"
-    utilisateur = creator_matricule
-    actual_creator = creator_matricule
-    demandeur_structure = g.user['structure']
-    
-    validateur_demandeur = data.get('validateur_demandeur')
-    
-    if validateur_demandeur:
-        q = """
-        INSERT INTO Demandes (
-            num_demande, Code_Affaire, 
-            Date_Debut_Prestation, Date_Fin_Prestation,
-            description, Observation, utilisateur, Status,
-            ref_ods_client, lieu_prestation,
-            validateur_demandeur, date_validation_demandeur, demandeur_structure
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'Validé', ?, ?, ?, datetime('now'), ?)
-        """
-        params = (
-            num_demande,  
-            data.get('code_affaire'), 
-            data.get('date_debut'), 
-            data.get('date_fin'), 
-            data.get('description'), 
-            data.get('observation'), 
-            utilisateur,
-            data.get('ref_ods_client'),
-            data.get('lieu_prestation'),
-            validateur_demandeur,
-            demandeur_structure
-        )
-    else:
-        q = """
-        INSERT INTO Demandes (
-            num_demande, Code_Affaire, 
-            Date_Debut_Prestation, Date_Fin_Prestation,
-            description, Observation, utilisateur, Status,
-            ref_ods_client, lieu_prestation,
-            demandeur_structure
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'En Attente', ?, ?, ?)
-        """
-        params = (
-            num_demande,  
-            data.get('code_affaire'), 
-            data.get('date_debut'), 
-            data.get('date_fin'), 
-            data.get('description'), 
-            data.get('observation'), 
-            utilisateur,
-            data.get('ref_ods_client'),
-            data.get('lieu_prestation'),
-            demandeur_structure
-        )
+        cursor.execute(q, params)
         
-    cursor.execute(q, params)
-    
-    for code in requested_engins:
-        cursor.execute("INSERT INTO Demande_Engins (num_demande, Code_Prestation) VALUES (?, ?)", (num_demande, code))
+        for code in requested_engins:
+            cursor.execute("INSERT INTO Demande_Engins (num_demande, Code_Prestation) VALUES (?, ?)", (num_demande, code))
+            
+        log_transaction(cursor, num_demande, utilisateur, "Création de la demande", request.remote_addr, actual_creator)
         
-    log_transaction(cursor, num_demande, utilisateur, "Création de la demande", request.remote_addr, actual_creator)
-    
-    conn.commit()
-    conn.close()
-    
-    return jsonify({"message": "Demande créée", "num_demande": num_demande}), 201
+        conn.commit()
+        return jsonify({"message": "Demande créée", "num_demande": num_demande}), 201
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Transaction failed (create_demande): {e}")
+        return jsonify({"error": "Erreur interne du serveur lors de l'opération."}), 500
+    finally:
+        conn.close()
 
 @demandes_bp.route('/api/demandes/stats', methods=['GET'])
 @require_auth
@@ -408,35 +391,38 @@ def update_demande_engins(num_demande):
     matricule = g.user['matricule']
     
     conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Check if demande exists and belongs to DSL
-    cursor.execute("SELECT Status, demandeur_structure FROM Demandes WHERE num_demande = ?", (num_demande,))
-    row = cursor.fetchone()
-    if not row:
+    try:
+        cursor = conn.cursor()
+        
+        # Check if demande exists and belongs to DSL
+        cursor.execute("SELECT Status, demandeur_structure FROM Demandes WHERE num_demande = ?", (num_demande,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Demande introuvable"}), 404
+        
+        status, demandeur_structure = row
+        
+        # Only allow editing if status is En Attente or Validé
+        if status not in ('En Attente', 'Validé'):
+            return jsonify({"error": f"Impossible de modifier: statut actuel est '{status}'"}), 400
+        
+        # Delete existing engins
+        cursor.execute("DELETE FROM Demande_Engins WHERE num_demande = ?", (num_demande,))
+        
+        # Insert new engins
+        for code in engins:
+            cursor.execute("INSERT INTO Demande_Engins (num_demande, Code_Prestation) VALUES (?, ?)", (num_demande, code))
+        
+        log_transaction(cursor, num_demande, matricule, "Modification des engins", request.remote_addr)
+        
+        conn.commit()
+        return jsonify({"message": "Engins mis à jour avec succès"})
+    except Exception as e:
+        conn.rollback()
+        print(f"Transaction failed: {e}")
+        return jsonify({"error": "Erreur interne du serveur lors de la modification des engins."}), 500
+    finally:
         conn.close()
-        return jsonify({"error": "Demande introuvable"}), 404
-    
-    status, demandeur_structure = row
-    
-    # Only allow editing if status is En Attente or Validé
-    if status not in ('En Attente', 'Validé'):
-        conn.close()
-        return jsonify({"error": f"Impossible de modifier: statut actuel est '{status}'"}), 400
-    
-    # Delete existing engins
-    cursor.execute("DELETE FROM Demande_Engins WHERE num_demande = ?", (num_demande,))
-    
-    # Insert new engins
-    for code in engins:
-        cursor.execute("INSERT INTO Demande_Engins (num_demande, Code_Prestation) VALUES (?, ?)", (num_demande, code))
-    
-    log_transaction(cursor, num_demande, matricule, "Modification des engins", request.remote_addr)
-    
-    conn.commit()
-    conn.close()
-    
-    return jsonify({"message": "Engins mis à jour avec succès"})
 
 @demandes_bp.route('/api/demandes/<num_demande>/valider', methods=['POST'])
 @require_auth
@@ -444,28 +430,32 @@ def valider_demande(num_demande):
     matricule = g.user['matricule']
     
     conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Vérifier que la demande est bien "En Attente"
-    cursor.execute("SELECT Status FROM Demandes WHERE num_demande = ?", (num_demande,))
-    row = cursor.fetchone()
-    if not row:
+    try:
+        cursor = conn.cursor()
+        
+        # Vérifier que la demande est bien "En Attente"
+        cursor.execute("SELECT Status FROM Demandes WHERE num_demande = ?", (num_demande,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Demande introuvable"}), 404
+        if row[0] != 'En Attente':
+            return jsonify({"error": f"Impossible de valider: statut actuel est '{row[0]}'"}), 400
+        
+        q = """
+        UPDATE Demandes
+        SET Status = 'Validé', date_validation_demandeur = datetime('now'), validateur_demandeur = ?
+        WHERE num_demande = ? AND Status = 'En Attente'
+        """
+        cursor.execute(q, (matricule, num_demande))
+        log_transaction(cursor, num_demande, matricule, "Validation (Chef Département Demandeur)", request.remote_addr)
+        conn.commit()
+        return jsonify({"message": "Validé avec succès"})
+    except Exception as e:
+        conn.rollback()
+        print(f"Transaction failed: {e}")
+        return jsonify({"error": "Erreur interne du serveur lors de la validation."}), 500
+    finally:
         conn.close()
-        return jsonify({"error": "Demande introuvable"}), 404
-    if row[0] != 'En Attente':
-        conn.close()
-        return jsonify({"error": f"Impossible de valider: statut actuel est '{row[0]}'"}), 400
-    
-    q = """
-    UPDATE Demandes
-    SET Status = 'Validé', date_validation_demandeur = datetime('now'), validateur_demandeur = ?
-    WHERE num_demande = ? AND Status = 'En Attente'
-    """
-    cursor.execute(q, (matricule, num_demande))
-    log_transaction(cursor, num_demande, matricule, "Validation (Chef Département Demandeur)", request.remote_addr)
-    conn.commit()
-    conn.close()
-    return jsonify({"message": "Validé avec succès"})
 
 @demandes_bp.route('/api/demandes/<num_demande>/rejeter', methods=['POST'])
 @require_auth
@@ -478,28 +468,32 @@ def rejeter_demande(num_demande):
         return jsonify({"error": "Le motif de rejet est obligatoire."}), 400
     
     conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Vérifier le statut actuel
-    cursor.execute("SELECT Status FROM Demandes WHERE num_demande = ?", (num_demande,))
-    row = cursor.fetchone()
-    if not row:
+    try:
+        cursor = conn.cursor()
+        
+        # Vérifier le statut actuel
+        cursor.execute("SELECT Status FROM Demandes WHERE num_demande = ?", (num_demande,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Demande introuvable"}), 404
+        if row[0] in ('Clôturé', 'Rejeté', 'Annulé'):
+            return jsonify({"error": f"Impossible de rejeter: statut actuel est '{row[0]}'"}), 400
+        
+        cursor.execute("""
+            UPDATE Demandes 
+            SET Status = 'Rejeté',
+                motif_rejet = ?
+            WHERE num_demande = ?
+        """, (motif, num_demande))
+        log_transaction(cursor, num_demande, matricule, f"Rejet de la demande - Motif: {motif}", request.remote_addr)
+        conn.commit()
+        return jsonify({"message": "Demande rejetée"})
+    except Exception as e:
+        conn.rollback()
+        print(f"Transaction failed: {e}")
+        return jsonify({"error": "Erreur interne du serveur lors du rejet."}), 500
+    finally:
         conn.close()
-        return jsonify({"error": "Demande introuvable"}), 404
-    if row[0] in ('Clôturé', 'Rejeté', 'Annulé'):
-        conn.close()
-        return jsonify({"error": f"Impossible de rejeter: statut actuel est '{row[0]}'"}), 400
-    
-    cursor.execute("""
-        UPDATE Demandes 
-        SET Status = 'Rejeté',
-            motif_rejet = ?
-        WHERE num_demande = ?
-    """, (motif, num_demande))
-    log_transaction(cursor, num_demande, matricule, f"Rejet de la demande - Motif: {motif}", request.remote_addr)
-    conn.commit()
-    conn.close()
-    return jsonify({"message": "Demande rejetée"})
 
 @demandes_bp.route('/api/demandes/<num_demande>/dsl_validate', methods=['POST'])
 @require_auth
@@ -510,57 +504,59 @@ def dsl_valider_demande(num_demande):
     assigned_engins = data.get('assigned_engins', [])
     
     conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Vérifier que la demande est bien "Validé"
-    cursor.execute("SELECT Status FROM Demandes WHERE num_demande = ?", (num_demande,))
-    row = cursor.fetchone()
-    if not row:
-        conn.close()
-        return jsonify({"error": "Demande introuvable"}), 404
-    if row[0] != 'Validé':
-        conn.close()
-        return jsonify({"error": f"Impossible d'approuver/transférer: statut actuel est '{row[0]}'"}), 400
-    
-    if action == 'nd':
+    try:
+        cursor = conn.cursor()
+        
+        # Vérifier que la demande est bien "Validé"
+        cursor.execute("SELECT Status FROM Demandes WHERE num_demande = ?", (num_demande,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Demande introuvable"}), 404
+        if row[0] != 'Validé':
+            return jsonify({"error": f"Impossible d'approuver/transférer: statut actuel est '{row[0]}'"}), 400
+        
+        if action == 'nd':
+            q = """
+            UPDATE Demandes
+            SET Status = 'Sous Traitance', validateur_dsl = ?
+            WHERE num_demande = ? AND Status = 'Validé'
+            """
+            cursor.execute(q, (matricule, num_demande))
+            log_transaction(cursor, num_demande, matricule, "Passage en Sous Traitance (ND)", request.remote_addr)
+            conn.commit()
+            return jsonify({"message": "Passé en Sous Traitance avec succès"})
+
+        ot = data.get('ot', '').strip()
+        
+        if not ot:
+            return jsonify({"error": "OT est obligatoire pour approuver."}), 400
+
+        if ot:
+            cursor.execute("SELECT num_demande FROM Demandes WHERE OT_ODS = ? AND num_demande != ?", (ot, num_demande))
+            if cursor.fetchone():
+                return jsonify({"error": "La Référence OT existe déjà dans la base."}), 400
+                
         q = """
         UPDATE Demandes
-        SET Status = 'Sous Traitance', validateur_dsl = ?
+        SET Status = 'Approuvé', date_validation_prestataire = datetime('now'), OT_ODS = ?, validateur_dsl = ?
         WHERE num_demande = ? AND Status = 'Validé'
         """
-        cursor.execute(q, (matricule, num_demande))
-        log_transaction(cursor, num_demande, matricule, "Passage en Sous Traitance (ND)", request.remote_addr)
+        cursor.execute(q, (ot, matricule, num_demande))
+        
+        if assigned_engins is not None:
+            cursor.execute("DELETE FROM Demande_Engins WHERE num_demande = ?", (num_demande,))
+            for code in assigned_engins:
+                cursor.execute("INSERT INTO Demande_Engins (num_demande, Code_Prestation) VALUES (?, ?)", (num_demande, code))
+
+        log_transaction(cursor, num_demande, matricule, "Approbation (Service DSL)", request.remote_addr)
         conn.commit()
+        return jsonify({"message": "Approuvé avec succès"})
+    except Exception as e:
+        conn.rollback()
+        print(f"Transaction failed: {e}")
+        return jsonify({"error": "Erreur interne du serveur lors de l'approbation DSL."}), 500
+    finally:
         conn.close()
-        return jsonify({"message": "Passé en Sous Traitance avec succès"})
-
-    ot = data.get('ot', '').strip()
-    
-    if not ot:
-        return jsonify({"error": "OT est obligatoire pour approuver."}), 400
-
-    if ot:
-        cursor.execute("SELECT num_demande FROM Demandes WHERE OT_ODS = ? AND num_demande != ?", (ot, num_demande))
-        if cursor.fetchone():
-            conn.close()
-            return jsonify({"error": "La Référence OT existe déjà dans la base."}), 400
-            
-    q = """
-    UPDATE Demandes
-    SET Status = 'Approuvé', date_validation_prestataire = datetime('now'), OT_ODS = ?, validateur_dsl = ?
-    WHERE num_demande = ? AND Status = 'Validé'
-    """
-    cursor.execute(q, (ot, matricule, num_demande))
-    
-    if assigned_engins is not None:
-        cursor.execute("DELETE FROM Demande_Engins WHERE num_demande = ?", (num_demande,))
-        for code in assigned_engins:
-            cursor.execute("INSERT INTO Demande_Engins (num_demande, Code_Prestation) VALUES (?, ?)", (num_demande, code))
-
-    log_transaction(cursor, num_demande, matricule, "Approbation (Service DSL)", request.remote_addr)
-    conn.commit()
-    conn.close()
-    return jsonify({"message": "Approuvé avec succès"})
 
 @demandes_bp.route('/api/demandes/<num_demande>/cpa_validate', methods=['POST'])
 @require_auth
@@ -575,34 +571,37 @@ def cpa_valider_demande(num_demande):
         return jsonify({"error": "ODS, Date et Fournisseur sont obligatoires pour valider en CPA."}), 400
 
     conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Vérifier que la demande est bien "Sous Traitance"
-    cursor.execute("SELECT Status FROM Demandes WHERE num_demande = ?", (num_demande,))
-    row = cursor.fetchone()
-    if not row:
-        conn.close()
-        return jsonify({"error": "Demande introuvable"}), 404
-    if row[0] != 'Sous Traitance':
-        conn.close()
-        return jsonify({"error": f"Impossible d'approuver: statut actuel est '{row[0]}'"}), 400
+    try:
+        cursor = conn.cursor()
         
-    if ods:
-        cursor.execute("SELECT num_demande FROM Demandes WHERE OT_ODS = ? AND num_demande != ?", (ods, num_demande))
-        if cursor.fetchone():
-            conn.close()
-            return jsonify({"error": "La Référence ODS existe déjà dans la base."}), 400
+        # Vérifier que la demande est bien "Sous Traitance"
+        cursor.execute("SELECT Status FROM Demandes WHERE num_demande = ?", (num_demande,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Demande introuvable"}), 404
+        if row[0] != 'Sous Traitance':
+            return jsonify({"error": f"Impossible d'approuver: statut actuel est '{row[0]}'"}), 400
             
-    q = """
-    UPDATE Demandes
-    SET Status = 'Approuvé', date_validation_prestataire = datetime('now'), OT_ODS = ?, date_cpa = ?, Fournisseur = ?
-    WHERE num_demande = ? AND Status = 'Sous Traitance'
-    """
-    cursor.execute(q, (ods, date_cpa, fournisseur, num_demande))
-    log_transaction(cursor, num_demande, matricule, "Approbation Sous-Traitance (CPA)", request.remote_addr)
-    conn.commit()
-    conn.close()
-    return jsonify({"message": "Approuvé par CPA avec succès"})
+        if ods:
+            cursor.execute("SELECT num_demande FROM Demandes WHERE OT_ODS = ? AND num_demande != ?", (ods, num_demande))
+            if cursor.fetchone():
+                return jsonify({"error": "La Référence ODS existe déjà dans la base."}), 400
+                
+        q = """
+        UPDATE Demandes
+        SET Status = 'Approuvé', date_validation_prestataire = datetime('now'), OT_ODS = ?, date_cpa = ?, Fournisseur = ?
+        WHERE num_demande = ? AND Status = 'Sous Traitance'
+        """
+        cursor.execute(q, (ods, date_cpa, fournisseur, num_demande))
+        log_transaction(cursor, num_demande, matricule, "Approbation Sous-Traitance (CPA)", request.remote_addr)
+        conn.commit()
+        return jsonify({"message": "Approuvé par CPA avec succès"})
+    except Exception as e:
+        conn.rollback()
+        print(f"Transaction failed: {e}")
+        return jsonify({"error": "Erreur interne du serveur lors de la validation CPA."}), 500
+    finally:
+        conn.close()
 
 @demandes_bp.route('/api/demandes/<num_demande>/en_cours', methods=['POST'])
 @require_auth
@@ -610,23 +609,27 @@ def en_cours_demande(num_demande):
     matricule = g.user['matricule']
     
     conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Vérifier que la demande est bien "Approuvé"
-    cursor.execute("SELECT Status FROM Demandes WHERE num_demande = ?", (num_demande,))
-    row = cursor.fetchone()
-    if not row:
+    try:
+        cursor = conn.cursor()
+        
+        # Vérifier que la demande est bien "Approuvé"
+        cursor.execute("SELECT Status FROM Demandes WHERE num_demande = ?", (num_demande,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Demande introuvable"}), 404
+        if row[0] != 'Approuvé':
+            return jsonify({"error": f"Impossible de démarrer: statut actuel est '{row[0]}'"}), 400
+        
+        cursor.execute("UPDATE Demandes SET Status = 'En Cours' WHERE num_demande = ?", (num_demande,))
+        log_transaction(cursor, num_demande, matricule, "Mise en cours de la demande", request.remote_addr)
+        conn.commit()
+        return jsonify({"message": "Demande en cours"})
+    except Exception as e:
+        conn.rollback()
+        print(f"Transaction failed: {e}")
+        return jsonify({"error": "Erreur interne du serveur lors de la mise en cours."}), 500
+    finally:
         conn.close()
-        return jsonify({"error": "Demande introuvable"}), 404
-    if row[0] != 'Approuvé':
-        conn.close()
-        return jsonify({"error": f"Impossible de démarrer: statut actuel est '{row[0]}'"}), 400
-    
-    cursor.execute("UPDATE Demandes SET Status = 'En Cours' WHERE num_demande = ?", (num_demande,))
-    log_transaction(cursor, num_demande, matricule, "Mise en cours de la demande", request.remote_addr)
-    conn.commit()
-    conn.close()
-    return jsonify({"message": "Demande en cours"})
 
 @demandes_bp.route('/api/demandes/<num_demande>/cloturer', methods=['POST'])
 @require_auth
@@ -634,23 +637,27 @@ def cloturer_demande(num_demande):
     matricule = g.user['matricule']
     
     conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Vérifier que la demande est bien "En Cours"
-    cursor.execute("SELECT Status FROM Demandes WHERE num_demande = ?", (num_demande,))
-    row = cursor.fetchone()
-    if not row:
+    try:
+        cursor = conn.cursor()
+        
+        # Vérifier que la demande est bien "En Cours"
+        cursor.execute("SELECT Status FROM Demandes WHERE num_demande = ?", (num_demande,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Demande introuvable"}), 404
+        if row[0] != 'En Cours':
+            return jsonify({"error": f"Impossible de clôturer: la demande doit être 'En Cours' (statut actuel: '{row[0]}')"}), 400
+        
+        cursor.execute("UPDATE Demandes SET Status = 'Clôturé' WHERE num_demande = ?", (num_demande,))
+        log_transaction(cursor, num_demande, matricule, "Clôture de la demande", request.remote_addr)
+        conn.commit()
+        return jsonify({"message": "Clôturé avec succès"})
+    except Exception as e:
+        conn.rollback()
+        print(f"Transaction failed: {e}")
+        return jsonify({"error": "Erreur interne du serveur lors de la clôture."}), 500
+    finally:
         conn.close()
-        return jsonify({"error": "Demande introuvable"}), 404
-    if row[0] != 'En Cours':
-        conn.close()
-        return jsonify({"error": f"Impossible de clôturer: la demande doit être 'En Cours' (statut actuel: '{row[0]}')"}), 400
-    
-    cursor.execute("UPDATE Demandes SET Status = 'Clôturé' WHERE num_demande = ?", (num_demande,))
-    log_transaction(cursor, num_demande, matricule, "Clôture de la demande", request.remote_addr)
-    conn.commit()
-    conn.close()
-    return jsonify({"message": "Clôturé avec succès"})
 
 @demandes_bp.route('/api/demandes/<num_demande>/annuler', methods=['POST'])
 @require_auth
@@ -663,28 +670,32 @@ def annuler_demande(num_demande):
         return jsonify({"error": "Le motif d'annulation est obligatoire."}), 400
     
     conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Vérifier le statut actuel
-    cursor.execute("SELECT Status FROM Demandes WHERE num_demande = ?", (num_demande,))
-    row = cursor.fetchone()
-    if not row:
+    try:
+        cursor = conn.cursor()
+        
+        # Vérifier le statut actuel
+        cursor.execute("SELECT Status FROM Demandes WHERE num_demande = ?", (num_demande,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Demande introuvable"}), 404
+        if row[0] in ('Clôturé', 'Rejeté', 'Annulé'):
+            return jsonify({"error": f"Impossible d'annuler: statut actuel est '{row[0]}'"}), 400
+        
+        cursor.execute("""
+            UPDATE Demandes 
+            SET Status = 'Annulé',
+                motif_rejet = ?
+            WHERE num_demande = ?
+        """, (motif, num_demande))
+        log_transaction(cursor, num_demande, matricule, f"Annulation de la demande - Motif: {motif}", request.remote_addr)
+        conn.commit()
+        return jsonify({"message": "Demande annulée"})
+    except Exception as e:
+        conn.rollback()
+        print(f"Transaction failed: {e}")
+        return jsonify({"error": "Erreur interne du serveur lors de l'annulation."}), 500
+    finally:
         conn.close()
-        return jsonify({"error": "Demande introuvable"}), 404
-    if row[0] in ('Clôturé', 'Rejeté', 'Annulé'):
-        conn.close()
-        return jsonify({"error": f"Impossible d'annuler: statut actuel est '{row[0]}'"}), 400
-    
-    cursor.execute("""
-        UPDATE Demandes 
-        SET Status = 'Annulé',
-            motif_rejet = ?
-        WHERE num_demande = ?
-    """, (motif, num_demande))
-    log_transaction(cursor, num_demande, matricule, f"Annulation de la demande - Motif: {motif}", request.remote_addr)
-    conn.commit()
-    conn.close()
-    return jsonify({"message": "Demande annulée"})
 
 @demandes_bp.route('/api/demandes/<num_demande>/journaux', methods=['GET'])
 @require_auth
