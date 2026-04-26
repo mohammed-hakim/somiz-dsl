@@ -162,10 +162,6 @@ INSERT INTO MaintenanceRules (
 -- Période : 20 Avril 2026 au 27 Avril 2026
 -- ==============================================================================
 
--- ==============================================================================
--- 2. INSERTION DES DEMANDES DE MAINTENANCE (MaintenanceRequests)
--- Période : 20 Avril 2026 au 27 Avril 2026
--- ==============================================================================
 INSERT INTO MaintenanceRequests (
     code_prestation, type_maintenance, date_debut, date_fin, kilometrage_actuel,
     description, status, demandeur_matricule, demandeur_structure,
