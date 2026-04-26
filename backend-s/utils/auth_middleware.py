@@ -4,7 +4,7 @@ from flask import request, jsonify, g
 import os
 import datetime
 
-SECRET_KEY = os.environ.get('SECRET_KEY', 'somiz_logistics_secret_key_2026')
+SECRET_KEY = os.environ.get('SECRET_KEY', 'somiz_logistics_secret_key_2026_change_please')
 ALGORITHM = "HS256"
 
 def generate_token(user_data):

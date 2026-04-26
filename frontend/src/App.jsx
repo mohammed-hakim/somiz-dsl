@@ -21,6 +21,14 @@ axios.interceptors.request.use((config) => {
       if (parsed && parsed.token) {
         config.headers = config.headers || {};
         config.headers.Authorization = `Bearer ${parsed.token}`;
+        
+        // Add logging headers for audit trail
+        if (parsed.clientWinAccount) {
+          config.headers['X-Client-Win-Account'] = parsed.clientWinAccount;
+        }
+        if (parsed.clientMachine) {
+          config.headers['X-Client-Machine'] = parsed.clientMachine;
+        }
       }
     } catch (e) {
       console.error("Interceptor parse error", e);
@@ -50,8 +58,15 @@ const Navbar = ({ user, setUser }) => {
   useEffect(() => {
     const fetchCount = async () => {
       try {
-        const { data } = await axios.get(`${apiUrl}/api/notifications`);
-        setNotifCount(data.length);
+        const [notifRes, ...rest] = await Promise.all([
+          axios.get(`${apiUrl}/api/notifications`),
+          ...(user.structure === 'DSL' ? [axios.get(`${apiUrl}/api/maintenance/alerts`)] : [])
+        ]);
+        let count = notifRes.data.length;
+        if (rest.length > 0 && rest[0]?.data?.summary) {
+          count += rest[0].data.summary.overdue + rest[0].data.summary.critical;
+        }
+        setNotifCount(count);
       } catch { /* silent */ }
     };
     fetchCount();

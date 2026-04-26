@@ -137,7 +137,7 @@ const DemandeForm = ({ user }) => {
       const res = await axios.post(`${apiUrl}/api/demandes`, {
         ...formData,
         observation: joinedObservations,
-        structure: user.struc_code || 'GEN',
+        structure: user.structure || 'GEN',
         creator_matricule: formData.creator_matricule || user.matricule,
         actual_creator_matricule: user.role === 'secretaire' ? user.matricule : null
       });

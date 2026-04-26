@@ -249,17 +249,32 @@ CREATE TABLE MaintenanceTypes (
 );
 
 INSERT INTO MaintenanceTypes (code, libelle, categorie, description) VALUES
+    -- ==========================================
+    -- Types pour le MATÉRIEL ROULANT (Préventif)
+    -- ==========================================
     ('VIDANGE', 'Vidange', 'Preventif', 'Vidange et changement des filtres'),
     ('REVISION_10K', 'Revision 10,000 km', 'Preventif', 'Revision periodique a 10,000 km'),
     ('REVISION_20K', 'Revision 20,000 km', 'Preventif', 'Revision complete a 20,000 km'),
     ('REVISION_30K', 'Revision 30,000 km', 'Preventif', 'Revision complete a 30,000 km'),
     ('PNEUS', 'Changement Pneus', 'Preventif', 'Remplacement des pneus uses'),
     ('FREINS', 'Maintenance Freins', 'Preventif', 'Verification et remplacement des freins'),
+    
+    -- ==========================================
+    -- Types pour les ÉQUIPEMENTS FIXES / PORTATIFS (Préventif)
+    -- ==========================================
+    ('INSPECTION_ECHAFAUDAGE', 'Inspection Echafaudage', 'Preventif', 'Verification visuelle et controle d''integrite structurelle'),
+    ('ENTRETIEN_ANNUEL', 'Entretien Annuel', 'Preventif', 'Revision periodique basee sur 12 mois d''utilisation'),
+    ('CONTROLE_USURE', 'Controle d''usure', 'Preventif', 'Controle des pieces d''usure (visserie, filetages, joints)'),
+
+    -- ==========================================
+    -- Types CURATIFS (Valables pour tout matériel)
+    -- ==========================================
     ('REPARATION_MECA', 'Reparation Mecanique', 'Curatif', 'Reparation suite a panne mecanique'),
     ('REPARATION_ELEC', 'Reparation Electrique', 'Curatif', 'Reparation probleme electrique'),
     ('CARROSSERIE', 'Reparation Carrosserie', 'Curatif', 'Reparation carrosserie suite a accident'),
     ('DEPANNAGE', 'Depannage', 'Curatif', 'Intervention urgente sur site');
 
+    
 -- Table: MaintenanceRules
 CREATE TABLE MaintenanceRules (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -330,6 +345,17 @@ CREATE TABLE MaintenanceRequests (
 
 
 
+-- Table: EquipementKm
+-- Tracks the current odometer reading for km-based equipment.
+-- Updated manually by DSL when new readings are available.
+CREATE TABLE IF NOT EXISTS EquipementKm (
+    code_prestation TEXT PRIMARY KEY,
+    current_km INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT DEFAULT (datetime('now', 'localtime')),
+    updated_by TEXT,
+    CONSTRAINT FK_EqKm_Equipement FOREIGN KEY (code_prestation) 
+        REFERENCES ListeEquipement("Code Prestation")
+);
 
 
 -- ============================================

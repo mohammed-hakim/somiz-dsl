@@ -6,6 +6,14 @@ from utils.auth_middleware import require_auth
 
 demandes_bp = Blueprint('demandes', __name__)
 
+def _client_info():
+    """Extract client machine info from request headers set by the frontend."""
+    return {
+        'compte_win': request.headers.get('X-Client-Win-Account', ''),
+        'nom_machine': request.headers.get('X-Client-Machine', '')
+    }
+
+
 @demandes_bp.route('/api/demandes', methods=['POST'])
 @require_auth
 def create_demande():
@@ -69,7 +77,7 @@ def create_demande():
         for code in requested_engins:
             cursor.execute("INSERT INTO Demande_Engins (num_demande, Code_Prestation) VALUES (?, ?)", (num_demande, code))
             
-        log_transaction(cursor, num_demande, utilisateur, "Création de la demande", request.remote_addr, actual_creator)
+        log_transaction(cursor, num_demande, utilisateur, "Création de la demande", request.remote_addr, actual_creator, **_client_info())
         
         conn.commit()
         return jsonify({"message": "Demande créée", "num_demande": num_demande}), 201
@@ -413,7 +421,7 @@ def update_demande_engins(num_demande):
         for code in engins:
             cursor.execute("INSERT INTO Demande_Engins (num_demande, Code_Prestation) VALUES (?, ?)", (num_demande, code))
         
-        log_transaction(cursor, num_demande, matricule, "Modification des engins", request.remote_addr)
+        log_transaction(cursor, num_demande, matricule, "Modification des engins", request.remote_addr, **_client_info())
         
         conn.commit()
         return jsonify({"message": "Engins mis à jour avec succès"})
@@ -447,7 +455,7 @@ def valider_demande(num_demande):
         WHERE num_demande = ? AND Status = 'En Attente'
         """
         cursor.execute(q, (matricule, num_demande))
-        log_transaction(cursor, num_demande, matricule, "Validation (Chef Département Demandeur)", request.remote_addr)
+        log_transaction(cursor, num_demande, matricule, "Validation (Chef Département Demandeur)", request.remote_addr, **_client_info())
         conn.commit()
         return jsonify({"message": "Validé avec succès"})
     except Exception as e:
@@ -485,7 +493,7 @@ def rejeter_demande(num_demande):
                 motif_rejet = ?
             WHERE num_demande = ?
         """, (motif, num_demande))
-        log_transaction(cursor, num_demande, matricule, f"Rejet de la demande - Motif: {motif}", request.remote_addr)
+        log_transaction(cursor, num_demande, matricule, f"Rejet de la demande - Motif: {motif}", request.remote_addr, **_client_info())
         conn.commit()
         return jsonify({"message": "Demande rejetée"})
     except Exception as e:
@@ -522,7 +530,7 @@ def dsl_valider_demande(num_demande):
             WHERE num_demande = ? AND Status = 'Validé'
             """
             cursor.execute(q, (matricule, num_demande))
-            log_transaction(cursor, num_demande, matricule, "Passage en Sous Traitance (ND)", request.remote_addr)
+            log_transaction(cursor, num_demande, matricule, "Passage en Sous Traitance (ND)", request.remote_addr, **_client_info())
             conn.commit()
             return jsonify({"message": "Passé en Sous Traitance avec succès"})
 
@@ -548,7 +556,7 @@ def dsl_valider_demande(num_demande):
             for code in assigned_engins:
                 cursor.execute("INSERT INTO Demande_Engins (num_demande, Code_Prestation) VALUES (?, ?)", (num_demande, code))
 
-        log_transaction(cursor, num_demande, matricule, "Approbation (Service DSL)", request.remote_addr)
+        log_transaction(cursor, num_demande, matricule, "Approbation (Service DSL)", request.remote_addr, **_client_info())
         conn.commit()
         return jsonify({"message": "Approuvé avec succès"})
     except Exception as e:
@@ -593,7 +601,7 @@ def cpa_valider_demande(num_demande):
         WHERE num_demande = ? AND Status = 'Sous Traitance'
         """
         cursor.execute(q, (ods, date_cpa, fournisseur, num_demande))
-        log_transaction(cursor, num_demande, matricule, "Approbation Sous-Traitance (CPA)", request.remote_addr)
+        log_transaction(cursor, num_demande, matricule, "Approbation Sous-Traitance (CPA)", request.remote_addr, **_client_info())
         conn.commit()
         return jsonify({"message": "Approuvé par CPA avec succès"})
     except Exception as e:
@@ -621,7 +629,7 @@ def en_cours_demande(num_demande):
             return jsonify({"error": f"Impossible de démarrer: statut actuel est '{row[0]}'"}), 400
         
         cursor.execute("UPDATE Demandes SET Status = 'En Cours' WHERE num_demande = ?", (num_demande,))
-        log_transaction(cursor, num_demande, matricule, "Mise en cours de la demande", request.remote_addr)
+        log_transaction(cursor, num_demande, matricule, "Mise en cours de la demande", request.remote_addr, **_client_info())
         conn.commit()
         return jsonify({"message": "Demande en cours"})
     except Exception as e:
@@ -649,7 +657,7 @@ def cloturer_demande(num_demande):
             return jsonify({"error": f"Impossible de clôturer: la demande doit être 'En Cours' (statut actuel: '{row[0]}')"}), 400
         
         cursor.execute("UPDATE Demandes SET Status = 'Clôturé' WHERE num_demande = ?", (num_demande,))
-        log_transaction(cursor, num_demande, matricule, "Clôture de la demande", request.remote_addr)
+        log_transaction(cursor, num_demande, matricule, "Clôture de la demande", request.remote_addr, **_client_info())
         conn.commit()
         return jsonify({"message": "Clôturé avec succès"})
     except Exception as e:
@@ -687,7 +695,7 @@ def annuler_demande(num_demande):
                 motif_rejet = ?
             WHERE num_demande = ?
         """, (motif, num_demande))
-        log_transaction(cursor, num_demande, matricule, f"Annulation de la demande - Motif: {motif}", request.remote_addr)
+        log_transaction(cursor, num_demande, matricule, f"Annulation de la demande - Motif: {motif}", request.remote_addr, **_client_info())
         conn.commit()
         return jsonify({"message": "Demande annulée"})
     except Exception as e:

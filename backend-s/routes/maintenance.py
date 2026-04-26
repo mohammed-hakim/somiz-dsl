@@ -2,8 +2,17 @@ from utils.date import format_date
 from flask import Blueprint, request, jsonify, g
 from db.connection import get_db_connection
 from utils.auth_middleware import require_auth
+from utils.logger import log_transaction
 
 maintenance_bp = Blueprint('maintenance', __name__)
+
+def _client_info():
+    """Extract client machine info from request headers set by the frontend."""
+    return {
+        'compte_win': request.headers.get('X-Client-Win-Account', ''),
+        'nom_machine': request.headers.get('X-Client-Machine', '')
+    }
+
 
 
 
@@ -203,6 +212,7 @@ def create_maintenance_request():
         ))
         
         request_id = cursor.lastrowid
+        log_transaction(cursor, request_id, g.user['matricule'], "Création demande maintenance", request.remote_addr, table_name='MaintenanceRequests', **_client_info())
         conn.commit()
         return jsonify({"message": "Demande de maintenance créée", "id": request_id}), 201
     except Exception as e:
@@ -234,6 +244,7 @@ def valider_maintenance_request(request_id):
             WHERE id = ?
         """, (matricule, request_id))
         
+        log_transaction(cursor, request_id, matricule, "Validation demande maintenance", request.remote_addr, table_name='MaintenanceRequests', **_client_info())
         conn.commit()
         return jsonify({"message": "Maintenance validée avec succès"})
     except Exception as e:
@@ -268,6 +279,7 @@ def rejeter_maintenance_request(request_id):
             WHERE id = ?
         """, (matricule, motif, request_id))
         
+        log_transaction(cursor, request_id, matricule, f"Rejet demande maintenance - Motif: {motif}", request.remote_addr, table_name='MaintenanceRequests', **_client_info())
         conn.commit()
         return jsonify({"message": "Maintenance rejetée"})
     except Exception as e:
@@ -299,6 +311,7 @@ def terminer_maintenance_request(request_id):
             WHERE id = ?
         """, (request_id,))
         
+        log_transaction(cursor, request_id, matricule, "Clôture (TERMINER) maintenance", request.remote_addr, table_name='MaintenanceRequests', **_client_info())
         conn.commit()
         return jsonify({"message": "Maintenance terminée avec succès"})
     except Exception as e:
@@ -311,38 +324,47 @@ def terminer_maintenance_request(request_id):
 @maintenance_bp.route('/api/maintenance/rules', methods=['GET'])
 @require_auth
 def get_maintenance_rules():
-    code_prestation = request.args.get('code_prestation')
+    page = int(request.args.get('page', 1))
+    per_page = int(request.args.get('per_page', 10))
+    search = request.args.get('search', '').strip()
     
     conn = get_db_connection()
     cursor = conn.cursor()
     
+    base_query = """
+        FROM MaintenanceRules r
+        JOIN ListeEquipement eq ON r.code_prestation = eq."Code Prestation"
+        JOIN MaintenanceTypes mt ON r.type_maintenance = mt.code
+        WHERE r.is_active = 1
+    """
     
+    params = []
     
-    if code_prestation:
-        cursor.execute("""
-            SELECT r.id, r.code_prestation, eq.Prestation, r.type_maintenance, mt.libelle, mt.categorie,
-                   r.interval_km, r.interval_days, r.alert_before_km, r.alert_before_days, r.is_active
-            FROM MaintenanceRules r
-            JOIN ListeEquipement eq ON r.code_prestation = eq."Code Prestation"
-            JOIN MaintenanceTypes mt ON r.type_maintenance = mt.code
-            WHERE r.code_prestation = ? AND r.is_active = 1
-            ORDER BY mt.categorie, mt.libelle
-        """, (code_prestation,))
-    else:
-        cursor.execute("""
-            SELECT r.id, r.code_prestation, eq.Prestation, r.type_maintenance, mt.libelle, mt.categorie,
-                   r.interval_km, r.interval_days, r.alert_before_km, r.alert_before_days, r.is_active
-            FROM MaintenanceRules r
-            JOIN ListeEquipement eq ON r.code_prestation = eq."Code Prestation"
-            JOIN MaintenanceTypes mt ON r.type_maintenance = mt.code
-            WHERE r.is_active = 1
-            ORDER BY eq.Prestation, mt.categorie, mt.libelle
-        """)
+    if search:
+        base_query += ' AND (r.code_prestation LIKE ? OR eq.Prestation LIKE ?)'
+        params.extend([f'%{search}%', f'%{search}%'])
+        
+    # Get total count
+    count_query = f"SELECT COUNT(*) {base_query}"
+    cursor.execute(count_query, params)
+    total = cursor.fetchone()[0]
+    total_pages = (total + per_page - 1) // per_page
+    
+    # Get paginated data
+    data_query = f"""
+        SELECT r.id, r.code_prestation, eq.Prestation, r.type_maintenance, mt.libelle, mt.categorie,
+               r.interval_km, r.interval_days, r.alert_before_km, r.alert_before_days, r.is_active
+        {base_query}
+        ORDER BY r.code_prestation, mt.categorie, mt.libelle
+        LIMIT ? OFFSET ?
+    """
+    params.extend([per_page, (page - 1) * per_page])
+    cursor.execute(data_query, params)
     
     rows = cursor.fetchall()
     conn.close()
     
-    return jsonify([{
+    data = [{
         "id": r[0],
         "code_prestation": r[1],
         "equipement": r[2],
@@ -354,7 +376,15 @@ def get_maintenance_rules():
         "alert_before_km": r[8],
         "alert_before_days": r[9],
         "is_active": r[10]
-    } for r in rows])
+    } for r in rows]
+    
+    return jsonify({
+        "data": data,
+        "page": page,
+        "per_page": per_page,
+        "total": total,
+        "total_pages": total_pages
+    })
 
 @maintenance_bp.route('/api/maintenance/rules', methods=['POST'])
 @require_auth
@@ -380,12 +410,254 @@ def create_maintenance_rule():
         ))
         
         rule_id = cursor.lastrowid
-        
+        log_transaction(cursor, rule_id, g.user['matricule'], "Création règle maintenance", request.remote_addr, table_name='MaintenanceRules', **_client_info())
         conn.commit()
         return jsonify({"message": "Règle de maintenance créée", "id": rule_id}), 201
     except Exception as e:
         conn.rollback()
         print(f"Transaction failed: {e}")
         return jsonify({"error": "Erreur interne du serveur lors de la création de la règle."}), 500
+    finally:
+        conn.close()
+
+
+# ============================================================
+# MAINTENANCE ALERTS ENGINE
+# ============================================================
+
+from datetime import datetime, timedelta
+
+@maintenance_bp.route('/api/maintenance/alerts', methods=['GET'])
+@require_auth
+def get_maintenance_alerts():
+    """
+    For each active rule, find the last TERMINE maintenance of that type+equipment.
+    Compare against the rule interval to compute next_due_date / next_due_km.
+    Return alerts sorted by urgency.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Get all active rules with equipment info
+    cursor.execute("""
+        SELECT r.id, r.code_prestation, eq.Prestation, r.type_maintenance, mt.libelle, mt.categorie,
+               r.interval_km, r.interval_days, r.alert_before_km, r.alert_before_days,
+               r.created_at
+        FROM MaintenanceRules r
+        JOIN ListeEquipement eq ON r.code_prestation = eq."Code Prestation"
+        JOIN MaintenanceTypes mt ON r.type_maintenance = mt.code
+        WHERE r.is_active = 1
+        ORDER BY r.code_prestation
+    """)
+    rules = cursor.fetchall()
+    
+    today = datetime.now()
+    alerts = []
+    
+    for rule in rules:
+        rule_id = rule[0]
+        code = rule[1]
+        equipement = rule[2]
+        type_code = rule[3]
+        type_libelle = rule[4]
+        categorie = rule[5]
+        interval_km = rule[6]
+        interval_days = rule[7]
+        alert_before_km = rule[8]
+        alert_before_days = rule[9]
+        rule_created = rule[10]
+        
+        # Find the last completed maintenance for this equipment+type
+        cursor.execute("""
+            SELECT date_fin_reelle, kilometrage_actuel
+            FROM MaintenanceRequests
+            WHERE code_prestation = ? AND type_maintenance = ? AND status = 'TERMINE'
+            ORDER BY date_fin_reelle DESC
+            LIMIT 1
+        """, (code, type_code))
+        last = cursor.fetchone()
+        
+        # Check if there's already a pending/active maintenance for this combo
+        cursor.execute("""
+            SELECT id FROM MaintenanceRequests
+            WHERE code_prestation = ? AND type_maintenance = ?
+            AND status IN ('EN_ATTENTE', 'VALIDE', 'EN_COURS')
+            LIMIT 1
+        """, (code, type_code))
+        pending = cursor.fetchone()
+        
+        alert_entry = {
+            "rule_id": rule_id,
+            "code_prestation": code,
+            "equipement": equipement,
+            "type_maintenance": type_code,
+            "type_libelle": type_libelle,
+            "categorie": categorie,
+            "has_pending": pending is not None,
+            "time_alert": None,
+            "km_alert": None,
+            "urgency": "OK"  # OK, WARNING, CRITICAL, OVERDUE
+        }
+        
+        # ===== TIME-BASED EVALUATION =====
+        if interval_days:
+            if last and last[0]:
+                try:
+                    last_date = datetime.fromisoformat(last[0].split('.')[0])
+                except (ValueError, AttributeError):
+                    last_date = datetime.fromisoformat(rule_created.split('.')[0]) if rule_created else today
+            else:
+                # No past maintenance — use rule creation date as baseline
+                last_date = datetime.fromisoformat(rule_created.split('.')[0]) if rule_created else today
+            
+            next_due = last_date + timedelta(days=interval_days)
+            days_remaining = (next_due - today).days
+            alert_threshold = alert_before_days or 0
+            
+            time_urgency = "OK"
+            if days_remaining < 0:
+                time_urgency = "OVERDUE"
+            elif days_remaining <= alert_threshold:
+                time_urgency = "CRITICAL"
+            elif days_remaining <= alert_threshold * 2:
+                time_urgency = "WARNING"
+            
+            alert_entry["time_alert"] = {
+                "last_date": last_date.strftime("%Y-%m-%d") if last_date else None,
+                "next_due": next_due.strftime("%Y-%m-%d"),
+                "days_remaining": days_remaining,
+                "interval_days": interval_days,
+                "alert_threshold": alert_threshold,
+                "urgency": time_urgency
+            }
+        
+        # ===== KM-BASED EVALUATION =====
+        if interval_km:
+            # Get current km from EquipementKm table
+            cursor.execute("SELECT current_km FROM EquipementKm WHERE code_prestation = ?", (code,))
+            km_row = cursor.fetchone()
+            current_km = km_row[0] if km_row else None
+            
+            last_km = last[1] if last else None
+            
+            if current_km is not None and last_km is not None:
+                km_since_last = current_km - last_km
+                km_remaining = interval_km - km_since_last
+                km_threshold = alert_before_km or 0
+                
+                km_urgency = "OK"
+                if km_remaining < 0:
+                    km_urgency = "OVERDUE"
+                elif km_remaining <= km_threshold:
+                    km_urgency = "CRITICAL"
+                elif km_remaining <= km_threshold * 2:
+                    km_urgency = "WARNING"
+                    
+                alert_entry["km_alert"] = {
+                    "last_km": last_km,
+                    "current_km": current_km,
+                    "next_due_km": last_km + interval_km,
+                    "km_remaining": km_remaining,
+                    "interval_km": interval_km,
+                    "alert_threshold": km_threshold,
+                    "urgency": km_urgency
+                }
+            elif current_km is not None and last_km is None:
+                # No previous maintenance km baseline — show as needing attention
+                alert_entry["km_alert"] = {
+                    "last_km": None,
+                    "current_km": current_km,
+                    "next_due_km": None,
+                    "km_remaining": None,
+                    "interval_km": interval_km,
+                    "alert_threshold": alert_before_km or 0,
+                    "urgency": "WARNING",
+                    "note": "Aucune maintenance passée enregistrée pour établir une base km."
+                }
+            else:
+                alert_entry["km_alert"] = {
+                    "last_km": last_km,
+                    "current_km": None,
+                    "next_due_km": None,
+                    "km_remaining": None,
+                    "interval_km": interval_km,
+                    "alert_threshold": alert_before_km or 0,
+                    "urgency": "UNKNOWN",
+                    "note": "Kilométrage actuel non renseigné."
+                }
+        
+        # Compute overall urgency (worst of time + km)
+        urgency_order = {"OVERDUE": 4, "CRITICAL": 3, "WARNING": 2, "UNKNOWN": 1, "OK": 0}
+        time_u = alert_entry["time_alert"]["urgency"] if alert_entry["time_alert"] else "OK"
+        km_u = alert_entry["km_alert"]["urgency"] if alert_entry["km_alert"] else "OK"
+        overall = max(time_u, km_u, key=lambda x: urgency_order.get(x, 0))
+        alert_entry["urgency"] = overall
+        
+        alerts.append(alert_entry)
+    
+    conn.close()
+    
+    # Sort: OVERDUE first, then CRITICAL, WARNING, UNKNOWN, OK
+    alerts.sort(key=lambda a: urgency_order.get(a["urgency"], 0), reverse=True)
+    
+    # Count by urgency for the summary
+    summary = {
+        "overdue": sum(1 for a in alerts if a["urgency"] == "OVERDUE"),
+        "critical": sum(1 for a in alerts if a["urgency"] == "CRITICAL"),
+        "warning": sum(1 for a in alerts if a["urgency"] == "WARNING"),
+        "ok": sum(1 for a in alerts if a["urgency"] in ("OK", "UNKNOWN")),
+        "total": len(alerts)
+    }
+    
+    return jsonify({
+        "summary": summary,
+        "alerts": alerts
+    })
+
+
+# ============================================================
+# EQUIPMENT KM TRACKING
+# ============================================================
+
+@maintenance_bp.route('/api/equipements/<path:code_prestation>/km', methods=['GET'])
+@require_auth
+def get_equipment_km(code_prestation):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT current_km, updated_at, updated_by FROM EquipementKm WHERE code_prestation = ?", (code_prestation,))
+    row = cursor.fetchone()
+    conn.close()
+    
+    if row:
+        return jsonify({"code_prestation": code_prestation, "current_km": row[0], "updated_at": row[1], "updated_by": row[2]})
+    return jsonify({"code_prestation": code_prestation, "current_km": None, "updated_at": None, "updated_by": None})
+
+
+@maintenance_bp.route('/api/equipements/<path:code_prestation>/km', methods=['PUT'])
+@require_auth
+def update_equipment_km(code_prestation):
+    data = request.json
+    new_km = data.get('current_km')
+    
+    if new_km is None:
+        return jsonify({"error": "current_km est obligatoire"}), 400
+    
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO EquipementKm (code_prestation, current_km, updated_by)
+            VALUES (?, ?, ?)
+            ON CONFLICT(code_prestation) DO UPDATE SET
+                current_km = excluded.current_km,
+                updated_at = datetime('now', 'localtime'),
+                updated_by = excluded.updated_by
+        """, (code_prestation, int(new_km), g.user['matricule']))
+        conn.commit()
+        return jsonify({"message": "Kilométrage mis à jour", "current_km": int(new_km)})
+    except Exception as e:
+        conn.rollback()
+        print(f"Transaction failed: {e}")
+        return jsonify({"error": "Erreur lors de la mise à jour du kilométrage."}), 500
     finally:
         conn.close()
